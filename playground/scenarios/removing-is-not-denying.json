@@ -1,0 +1,133 @@
+{
+  "id": "removing-is-not-denying",
+  "chapter": "changing-the-rules",
+  "order": 21,
+  "title": "Removing Is Not Denying",
+  "summary": "The team removes the USDC rule to stop payments. USDC then falls to the permissive catch-all.",
+  "lesson": "Removing a rule does not block anything: matching calls fall back to the catch-all. To block a call whatever the catch-all says, put DenyPolicy on its rule.",
+  "readme": "policy-engine",
+  "setup": {
+    "balances": {
+      "USDC": "10000"
+    },
+    "rules": [
+      {
+        "fallback": "CALL",
+        "policy": "AllowPolicy",
+        "note": "Allows every CALL without its own rule"
+      },
+      {
+        "target": "USDC",
+        "selector": "transfer",
+        "policy": "ERC20TransferPolicy",
+        "config": {
+          "recipients": [
+            {
+              "account": "Dave",
+              "permission": "ALWAYS"
+            }
+          ]
+        },
+        "note": "USDC goes to Dave only"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "Pay Mallory 1000 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Mallory",
+            "1000"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "ERC20TransferPolicy",
+        "reason": {
+          "error": "Unauthorized"
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Ask to remove the USDC rule",
+      "tx": {
+        "to": "PolicyGuard",
+        "call": {
+          "fn": "requestConfiguration",
+          "configurations": [
+            {
+              "target": "USDC",
+              "selector": "transfer",
+              "policy": null,
+              "note": "Remove the USDC rule"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "The team wants to pause USDC payments and removes the rule, expecting that to block them."
+    },
+    {
+      "do": "wait",
+      "label": "Wait one hour",
+      "seconds": 3600
+    },
+    {
+      "do": "tx",
+      "label": "Apply the removal",
+      "tx": {
+        "to": "PolicyGuard",
+        "call": {
+          "fn": "applyConfiguration",
+          "configurations": [
+            {
+              "target": "USDC",
+              "selector": "transfer",
+              "policy": null,
+              "note": "Remove the USDC rule"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Pay Mallory 1000 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Mallory",
+            "1000"
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "With its rule gone, the transfer falls to the catch-all, which allows everything.",
+      "expectState": {
+        "balances": {
+          "Mallory": {
+            "USDC": "1000"
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,139 @@
+{
+  "id": "catch-all-cosigner",
+  "chapter": "rules-and-catch-all",
+  "order": 4,
+  "title": "The Catch-All Rule",
+  "summary": "Calls without a rule of their own go to a catch-all that wants the co-signer. Calls with their own rule never reach it.",
+  "lesson": "The catch-all decides only for calls that have no rule of their own. Here it asks for the co-signer, so anything new needs a second opinion, while known payments flow without one. A call with its own rule is decided by that rule alone.",
+  "readme": "policy-engine",
+  "setup": {
+    "balances": {
+      "ETH": "10",
+      "USDC": "10000"
+    },
+    "rules": [
+      {
+        "fallback": "CALL",
+        "policy": "CoSignerPolicy",
+        "config": {
+          "cosigner": "CoSigner"
+        },
+        "note": "Anything without its own rule needs the co-signer"
+      },
+      {
+        "target": "USDC",
+        "selector": "transfer",
+        "policy": "ERC20TransferPolicy",
+        "config": {
+          "recipients": [
+            {
+              "account": "Dave",
+              "permission": "ALWAYS"
+            }
+          ]
+        },
+        "note": "USDC goes to Dave only"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "Pay Dave 500 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Dave",
+            "500"
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "USDC transfers have their own rule, and Dave is on its list. The co-signer is not asked."
+    },
+    {
+      "do": "tx",
+      "label": "Send 1 ETH to Erin",
+      "tx": {
+        "to": "Erin",
+        "value": "1"
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "CoSignerPolicy",
+        "reason": {
+          "error": "Unauthorized"
+        }
+      },
+      "note": "No rule names this call, so the catch-all decides, and there is no co-signature."
+    },
+    {
+      "do": "tx",
+      "label": "Send 1 ETH to Erin, co-signed",
+      "tx": {
+        "to": "Erin",
+        "value": "1",
+        "context": {
+          "type": "cosignature",
+          "signer": "CoSigner"
+        }
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Pay Erin 500 USDC, co-signed",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Erin",
+            "500"
+          ]
+        },
+        "context": {
+          "type": "cosignature",
+          "signer": "CoSigner"
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "ERC20TransferPolicy",
+        "reason": {
+          "error": "Unauthorized"
+        }
+      },
+      "note": "USDC transfers have their own rule, so the catch-all is never asked. The co-signature cannot help: one rule decides each call, and Erin is not on its list."
+    },
+    {
+      "do": "tx",
+      "label": "Delegatecall an unknown contract, co-signed",
+      "tx": {
+        "to": "MysteryContract",
+        "operation": "DELEGATECALL",
+        "context": {
+          "type": "cosignature",
+          "signer": "CoSigner"
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "AccessDenied",
+        "policy": null
+      },
+      "note": "This catch-all covers CALL only. DELEGATECALL has a catch-all of its own, and it is empty."
+    }
+  ]
+}

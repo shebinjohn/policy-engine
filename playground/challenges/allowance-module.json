@@ -1,0 +1,131 @@
+{
+  "id": "allowance-module",
+  "level": 3,
+  "title": "The Allowance Module",
+  "brief": "The team installed the Allowance Module so the operations lead can pay Dave's USDC invoices without gathering signatures. From now on, USDC leaves the Safe only through that module. Everything else the owners do still needs the co-signer.",
+  "setup": {
+    "modules": [
+      "AllowanceModule",
+      "RecoveryModule"
+    ],
+    "balances": {
+      "ETH": "5",
+      "USDC": "20000"
+    },
+    "rules": [
+      {
+        "fallback": "CALL",
+        "policy": "CoSignerPolicy",
+        "config": {
+          "cosigner": "CoSigner"
+        },
+        "note": "Everything needs the co-signer"
+      }
+    ]
+  },
+  "allowedPolicies": [
+    "AllowedModulePolicy",
+    "ERC20TransferPolicy",
+    "CoSignerPolicy",
+    "AllowPolicy"
+  ],
+  "parRules": 2,
+  "tests": [
+    {
+      "label": "The Allowance Module pays Dave 800 USDC",
+      "tx": {
+        "path": "module",
+        "module": "AllowanceModule",
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Dave",
+            "800"
+          ]
+        }
+      },
+      "want": "pass"
+    },
+    {
+      "label": "The Recovery Module pays Dave 800 USDC",
+      "tx": {
+        "path": "module",
+        "module": "RecoveryModule",
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Dave",
+            "800"
+          ]
+        }
+      },
+      "want": "block"
+    },
+    {
+      "label": "The owners pay Dave 800 USDC, co-signed",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Dave",
+            "800"
+          ]
+        },
+        "context": {
+          "type": "cosignature",
+          "signer": "CoSigner"
+        }
+      },
+      "want": "block"
+    },
+    {
+      "label": "The owners send 1 ETH to Erin, co-signed",
+      "tx": {
+        "to": "Erin",
+        "value": "1",
+        "context": {
+          "type": "cosignature",
+          "signer": "CoSigner"
+        }
+      },
+      "want": "pass"
+    },
+    {
+      "label": "The Allowance Module sends 1 ETH to Erin",
+      "tx": {
+        "path": "module",
+        "module": "AllowanceModule",
+        "to": "Erin",
+        "value": "1"
+      },
+      "want": "block"
+    }
+  ],
+  "hints": [
+    "A module transaction cannot carry a co-signature, so the co-signer catch-all refuses every module transaction.",
+    "Give USDC transfers a rule of their own. Which policy looks at who sent the transaction rather than where the tokens go?",
+    "AllowedModulePolicy on transfer for USDC, with the Allowance Module allowed. It refuses owners on that rule, and here that is the point."
+  ],
+  "solution": [
+    {
+      "fallback": "CALL",
+      "policy": "CoSignerPolicy",
+      "config": {
+        "cosigner": "CoSigner"
+      }
+    },
+    {
+      "target": "USDC",
+      "selector": "transfer",
+      "policy": "AllowedModulePolicy",
+      "config": {
+        "module": "AllowanceModule",
+        "allowed": true
+      }
+    }
+  ],
+  "explain": "One rule serves owners and modules alike, so the policy has to tell them apart. The module allowlist passes only transactions from modules on its list: owners and the Recovery Module are refused. It checks who sends, not where the tokens go. Limits on amounts and recipients are the Allowance Module's own job."
+}

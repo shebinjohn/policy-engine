@@ -1,0 +1,106 @@
+{
+  "id": "pay-the-vendor",
+  "level": 1,
+  "title": "Pay the Vendor",
+  "brief": "Dave's agency builds the treasury website and invoices in USDC every month. The owners want to pay him without a meeting each time. Nobody else should receive USDC, and nothing else is on the agenda.",
+  "setup": {
+    "balances": {
+      "ETH": "5",
+      "USDC": "20000"
+    },
+    "rules": []
+  },
+  "allowedPolicies": [
+    "AllowPolicy",
+    "ERC20TransferPolicy",
+    "DenyPolicy"
+  ],
+  "parRules": 1,
+  "tests": [
+    {
+      "label": "Pay Dave 1500 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Dave",
+            "1500"
+          ]
+        }
+      },
+      "want": "pass"
+    },
+    {
+      "label": "Pay Mallory 1500 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Mallory",
+            "1500"
+          ]
+        }
+      },
+      "want": "block"
+    },
+    {
+      "label": "Pay Erin 200 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Erin",
+            "200"
+          ]
+        }
+      },
+      "want": "block"
+    },
+    {
+      "label": "Approve Dave to spend 1500 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "approve",
+          "args": [
+            "Dave",
+            "1500"
+          ]
+        }
+      },
+      "want": "block"
+    },
+    {
+      "label": "Send 1 ETH to Dave",
+      "tx": {
+        "to": "Dave",
+        "value": "1"
+      },
+      "want": "block"
+    }
+  ],
+  "hints": [
+    "A rule names a contract, a function and an operation. Paying in USDC is the transfer function on USDC.",
+    "AllowPolicy on that rule would pay Mallory too. Pick the policy that checks who receives the tokens.",
+    "ERC20TransferPolicy on transfer for USDC, with Dave set to ALWAYS."
+  ],
+  "solution": [
+    {
+      "target": "USDC",
+      "selector": "transfer",
+      "policy": "ERC20TransferPolicy",
+      "config": {
+        "recipients": [
+          {
+            "account": "Dave",
+            "permission": "ALWAYS"
+          }
+        ]
+      }
+    }
+  ],
+  "explain": "One rule does it: transfer on USDC, checked by a recipient allowlist with Dave on it. You never had to block Mallory, the approval or the ETH. With no rule, they are denied by default."
+}

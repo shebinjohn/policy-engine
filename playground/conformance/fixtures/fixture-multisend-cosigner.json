@@ -1,0 +1,126 @@
+{
+  "id": "fixture-multisend-cosigner",
+  "chapter": "Harness fixtures",
+  "order": 9003,
+  "title": "Batch With Co-Signer",
+  "summary": "A MultiSend batch is checked sub-transaction by sub-transaction; a co-signed USDC transfer needs the co-signer's signature over its own hash.",
+  "lesson": "MultiSendPolicy runs the engine on every sub-transaction and hands each one the next context item.",
+  "setup": {
+    "balances": { "ETH": "1", "USDC": "1000" },
+    "rules": [
+      { "target": "MultiSend", "selector": "multiSend", "operation": "DELEGATECALL", "policy": "MultiSendPolicy" },
+      { "target": "USDC", "selector": "transfer", "policy": "CoSignerPolicy", "config": { "cosigner": "CoSigner" } },
+      { "target": "Erin", "selector": "none", "policy": "NativeTransferPolicy" }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "Co-signed batch: pay Erin 0.1 ETH, then Dave 100 USDC",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            { "to": "Erin", "value": "0.1" },
+            { "to": "USDC", "call": { "fn": "transfer", "args": ["Dave", "100"] }, "context": { "type": "cosignature", "signer": "CoSigner" } }
+          ]
+        }
+      },
+      "expect": { "ok": true },
+      "expectState": { "balances": { "Dave": { "USDC": "100" }, "Erin": { "ETH": "0.1" }, "Safe": { "USDC": "900", "ETH": "0.9" } }, "nonce": 1 }
+    },
+    {
+      "do": "tx",
+      "label": "Mallory co-signs instead",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [{ "to": "USDC", "call": { "fn": "transfer", "args": ["Dave", "100"] }, "context": { "type": "cosignature", "signer": "Mallory" } }]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "MultiSendPolicy",
+        "reason": { "error": "PolicyReverted", "policy": "CoSignerPolicy", "reason": { "error": "Unauthorized" } }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "The co-signer signed the batch, not the transfer",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [{ "to": "USDC", "call": { "fn": "transfer", "args": ["Dave", "100"] }, "context": { "type": "cosignature", "signer": "CoSigner", "over": "batch" } }]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "MultiSendPolicy",
+        "reason": { "error": "PolicyReverted", "policy": "CoSignerPolicy", "reason": { "error": "Unauthorized" } }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "A sub-transaction with no rule",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": { "fn": "multiSend", "batch": [{ "to": "Erin", "value": "0.1" }, { "to": "Mallory", "value": "0.1" }] }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "MultiSendPolicy",
+        "reason": { "error": "AccessDenied", "policy": null }
+      },
+      "expectState": { "balances": { "Erin": { "ETH": "0.1" }, "Mallory": { "ETH": "0" } }, "nonce": 1 }
+    },
+    {
+      "do": "tx",
+      "label": "Same co-signed transfer twice in one batch",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            { "to": "USDC", "call": { "fn": "transfer", "args": ["Dave", "1"] }, "context": { "type": "cosignature", "signer": "CoSigner" } },
+            { "to": "USDC", "call": { "fn": "transfer", "args": ["Dave", "1"] }, "context": { "type": "cosignature", "signer": "CoSigner" } }
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "MultiSendPolicy",
+        "reason": { "error": "PolicyReverted", "policy": "CoSignerPolicy", "reason": { "error": "CoSignatureAlreadySpent" } }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "A sub-transaction fails during execution",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [{ "to": "USDC", "call": { "fn": "transfer", "args": ["Dave", "5000"] }, "context": { "type": "cosignature", "signer": "CoSigner" } }]
+        }
+      },
+      "expect": { "ok": false, "by": "execution", "error": "ERC20InsufficientBalance" },
+      "expectState": { "nonce": 1 }
+    }
+  ]
+}

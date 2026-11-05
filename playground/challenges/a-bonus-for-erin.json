@@ -1,0 +1,130 @@
+{
+  "id": "a-bonus-for-erin",
+  "level": 2,
+  "title": "A Bonus for Erin",
+  "brief": "Dave is the regular vendor and gets USDC whenever he invoices. Erin just finished an audit and is owed a single USDC bonus. After that one payment, Erin is back to receiving nothing.",
+  "setup": {
+    "balances": {
+      "USDC": "20000"
+    },
+    "rules": [
+      {
+        "target": "USDC",
+        "selector": "transfer",
+        "policy": "ERC20TransferPolicy",
+        "config": {
+          "recipients": [
+            {
+              "account": "Dave",
+              "permission": "ALWAYS"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "allowedPolicies": [
+    "ERC20TransferPolicy",
+    "OneTimeAllowPolicy",
+    "AllowPolicy"
+  ],
+  "parRules": 1,
+  "testMode": "sequence",
+  "tests": [
+    {
+      "label": "Pay Dave 1000 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Dave",
+            "1000"
+          ]
+        }
+      },
+      "want": "pass"
+    },
+    {
+      "label": "Pay Erin's 2500 USDC bonus",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Erin",
+            "2500"
+          ]
+        }
+      },
+      "want": "pass"
+    },
+    {
+      "label": "Pay Dave another 1000 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Dave",
+            "1000"
+          ]
+        }
+      },
+      "want": "pass"
+    },
+    {
+      "label": "Pay Erin 2500 USDC again",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Erin",
+            "2500"
+          ]
+        }
+      },
+      "want": "block"
+    },
+    {
+      "label": "Pay Mallory 2500 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Mallory",
+            "2500"
+          ]
+        }
+      },
+      "want": "block"
+    }
+  ],
+  "hints": [
+    "There is one rule for USDC transfers, so Dave and Erin have to share it.",
+    "The recipient allowlist gives each person a permission: ALWAYS or ONCE.",
+    "Keep Dave on ALWAYS and add Erin with ONCE."
+  ],
+  "solution": [
+    {
+      "target": "USDC",
+      "selector": "transfer",
+      "policy": "ERC20TransferPolicy",
+      "config": {
+        "recipients": [
+          {
+            "account": "Dave",
+            "permission": "ALWAYS"
+          },
+          {
+            "account": "Erin",
+            "permission": "ONCE"
+          }
+        ]
+      }
+    }
+  ],
+  "explain": "Dave and Erin share one key, transfer on USDC, so they share one policy. The allowlist keeps a permission per person, and ONCE is used up by the payment that uses it. A one-time pass would have been used up by the first USDC payment of any kind, so Dave would have been refused next."
+}

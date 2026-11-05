@@ -1,0 +1,86 @@
+{
+  "id": "requests-expire",
+  "chapter": "changing-the-rules",
+  "order": 20,
+  "title": "Requests Expire",
+  "summary": "A requested change that is not applied within seven days of maturing can no longer be applied.",
+  "lesson": "A requested change can be applied from one hour after the request until seven days later. After that it is dead, so an old request cannot be sprung on the team. Ask again to start over.",
+  "readme": "setup-with-safe",
+  "setup": {
+    "rules": []
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "Ask for a rule that allows adding modules",
+      "tx": {
+        "to": "PolicyGuard",
+        "call": {
+          "fn": "requestConfiguration",
+          "configurations": [
+            {
+              "target": "Safe",
+              "selector": "enableModule",
+              "policy": "AllowPolicy",
+              "note": "Owners may add modules"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "do": "wait",
+      "label": "Wait eight days",
+      "seconds": 691200
+    },
+    {
+      "do": "tx",
+      "label": "Apply the rule",
+      "tx": {
+        "to": "PolicyGuard",
+        "call": {
+          "fn": "applyConfiguration",
+          "configurations": [
+            {
+              "target": "Safe",
+              "selector": "enableModule",
+              "policy": "AllowPolicy",
+              "note": "Owners may add modules"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "RootConfigurationExpired"
+      },
+      "note": "The change matured after one hour and stayed open for seven days. That window has closed."
+    },
+    {
+      "do": "tx",
+      "label": "Ask for it again",
+      "tx": {
+        "to": "PolicyGuard",
+        "call": {
+          "fn": "requestConfiguration",
+          "configurations": [
+            {
+              "target": "Safe",
+              "selector": "enableModule",
+              "policy": "AllowPolicy",
+              "note": "Owners may add modules"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "An expired request can simply be made again. The hour starts over."
+    }
+  ]
+}

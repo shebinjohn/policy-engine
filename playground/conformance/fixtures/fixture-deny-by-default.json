@@ -1,0 +1,84 @@
+{
+  "id": "fixture-deny-by-default",
+  "chapter": "Harness fixtures",
+  "order": 9002,
+  "title": "Deny By Default",
+  "summary": "With the guard installed and no rules, every transaction is blocked, including a plain ETH transfer.",
+  "lesson": "No matching entry and no fallback means AccessDenied with no policy.",
+  "setup": {
+    "balances": { "ETH": "2" }
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "Send 1 ETH to Dave",
+      "tx": { "to": "Dave", "value": "1" },
+      "expect": { "ok": false, "by": "guard", "error": "AccessDenied", "policy": null },
+      "expectState": { "balances": { "Dave": { "ETH": "0" }, "Safe": { "ETH": "2" } }, "nonce": 0 }
+    },
+    {
+      "do": "tx",
+      "label": "Try to remove the guard",
+      "tx": { "to": "Safe", "call": { "fn": "setGuard", "args": ["Zero"] } },
+      "expect": { "ok": false, "by": "guard", "error": "AccessDenied", "policy": null },
+      "expectState": { "txGuard": "PolicyGuard" }
+    },
+    {
+      "do": "tx",
+      "label": "Configure immediately now that the guard is on",
+      "tx": {
+        "to": "PolicyGuard",
+        "call": { "fn": "configureImmediately", "configurations": [{ "fallback": "CALL", "policy": "AllowPolicy" }] }
+      },
+      "expect": { "ok": false, "by": "guard", "error": "GuardTargetDenied" }
+    },
+    {
+      "do": "tx",
+      "label": "Calldata of two bytes",
+      "tx": { "to": "MysteryContract", "data": "0x1234" },
+      "expect": { "ok": false, "by": "guard", "error": "InvalidSelector" }
+    },
+    {
+      "do": "tx",
+      "label": "Non-zero gas price",
+      "tx": { "to": "Dave", "value": "1", "gasPrice": "1" },
+      "expect": { "ok": false, "by": "guard", "error": "NonZeroGasPrice" }
+    },
+    {
+      "do": "tx",
+      "label": "Request an allow-everything fallback",
+      "tx": {
+        "to": "PolicyGuard",
+        "call": { "fn": "requestConfiguration", "configurations": [{ "fallback": "CALL", "policy": "NativeTransferPolicy" }] }
+      },
+      "expect": { "ok": true },
+      "expectState": { "nonce": 1 }
+    },
+    {
+      "do": "tx",
+      "label": "Apply before the delay",
+      "tx": {
+        "to": "PolicyGuard",
+        "call": { "fn": "applyConfiguration", "configurations": [{ "fallback": "CALL", "policy": "NativeTransferPolicy" }] }
+      },
+      "expect": { "ok": false, "by": "execution", "error": "RootConfigurationPending" }
+    },
+    { "do": "wait", "label": "Wait out the delay", "seconds": 3600 },
+    {
+      "do": "tx",
+      "label": "Apply after the delay",
+      "tx": {
+        "to": "PolicyGuard",
+        "call": { "fn": "applyConfiguration", "configurations": [{ "fallback": "CALL", "policy": "NativeTransferPolicy" }] }
+      },
+      "expect": { "ok": true }
+    },
+    {
+      "do": "tx",
+      "label": "Send 1 ETH to Dave again",
+      "tx": { "to": "Dave", "value": "1" },
+      "expect": { "ok": true },
+      "expectState": { "balances": { "Dave": { "ETH": "1" }, "Safe": { "ETH": "1" } }, "nonce": 3 }
+    }
+  ]
+}

@@ -1,0 +1,131 @@
+{
+  "id": "safenet-attestations",
+  "chapter": "batches",
+  "order": 15,
+  "title": "Safenet Attestations",
+  "summary": "A trusted Safenet attestation lets a transfer through. A missing one, an unknown key or a second attested step does not.",
+  "lesson": "SafenetPolicy lets a transaction through when the Safenet validators have attested to it. It accepts one attestation per transaction, so a batch of Safenet-checked steps fails on its second step.",
+  "readme": "policies",
+  "setup": {
+    "balances": {
+      "ETH": "10"
+    },
+    "rules": [
+      {
+        "fallback": "CALL",
+        "policy": "SafenetPolicy",
+        "note": "Every CALL needs a Safenet attestation"
+      },
+      {
+        "target": "MultiSend",
+        "selector": "multiSend",
+        "operation": "DELEGATECALL",
+        "policy": "MultiSendPolicy",
+        "note": "Lets batches through, checking every step"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "Send 1 ETH to Dave with an attestation",
+      "tx": {
+        "to": "Dave",
+        "value": "1",
+        "context": {
+          "type": "attestation",
+          "key": "trusted",
+          "valid": true
+        }
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Send 1 ETH to Dave without an attestation",
+      "tx": {
+        "to": "Dave",
+        "value": "1"
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "SafenetPolicy",
+        "reason": {
+          "error": "MalformedAttestation"
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Send 1 ETH to Dave, attested by an unknown key",
+      "tx": {
+        "to": "Dave",
+        "value": "1",
+        "context": {
+          "type": "attestation",
+          "key": "untrusted",
+          "valid": true
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "SafenetPolicy",
+        "reason": {
+          "error": "UntrustedAttestationKey"
+        }
+      },
+      "note": "The signature itself is sound, but the key that made it is not one the policy trusts."
+    },
+    {
+      "do": "tx",
+      "label": "Send a batch of two attested transfers",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "Dave",
+              "value": "1",
+              "context": {
+                "type": "attestation",
+                "key": "trusted",
+                "valid": true
+              }
+            },
+            {
+              "to": "Erin",
+              "value": "1",
+              "context": {
+                "type": "attestation",
+                "key": "trusted",
+                "valid": true
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "MultiSendPolicy",
+        "reason": {
+          "error": "PolicyReverted",
+          "policy": "SafenetPolicy",
+          "reason": {
+            "error": "AttestationAlreadySpent"
+          }
+        }
+      },
+      "note": "Safenet approves one transaction per Safe nonce, and a batch has one nonce. The second attested step is refused."
+    }
+  ]
+}

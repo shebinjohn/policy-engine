@@ -1,0 +1,160 @@
+{
+  "id": "module-paths",
+  "chapter": "modules-and-guards",
+  "order": 16,
+  "title": "Owners and Modules",
+  "summary": "The same rules check owners and modules, but some policies accept only one of the two.",
+  "lesson": "Owners and modules go through the same rules, and policies can tell them apart. The module allowlist refuses owners, the signature policies refuse modules, and no module can change the rules.",
+  "readme": "trusting-the-check-inputs",
+  "setup": {
+    "modules": [
+      "AllowanceModule",
+      "RecoveryModule"
+    ],
+    "balances": {
+      "ETH": "5",
+      "USDC": "10000"
+    },
+    "rules": [
+      {
+        "target": "USDC",
+        "selector": "transfer",
+        "policy": "AllowedModulePolicy",
+        "config": {
+          "module": "AllowanceModule",
+          "allowed": true
+        },
+        "note": "USDC moves only through the Allowance Module"
+      },
+      {
+        "fallback": "CALL",
+        "policy": "CoSignerPolicy",
+        "config": {
+          "cosigner": "CoSigner"
+        },
+        "note": "Everything else needs the co-signer"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "The Allowance Module pays Dave 300 USDC",
+      "tx": {
+        "path": "module",
+        "module": "AllowanceModule",
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Dave",
+            "300"
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "expectState": {
+        "balances": {
+          "Dave": {
+            "USDC": "300"
+          }
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "The Recovery Module pays Dave 300 USDC",
+      "tx": {
+        "path": "module",
+        "module": "RecoveryModule",
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Dave",
+            "300"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "AllowedModulePolicy",
+        "reason": {
+          "error": "UnauthorizedModule"
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "The owners pay Dave 300 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Dave",
+            "300"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "AllowedModulePolicy",
+        "reason": {
+          "error": "InvalidModule"
+        }
+      },
+      "note": "This rule accepts listed modules only. An owner transaction comes from no module, so it is refused, whoever signs."
+    },
+    {
+      "do": "tx",
+      "label": "The Allowance Module sends 1 ETH to Erin",
+      "tx": {
+        "path": "module",
+        "module": "AllowanceModule",
+        "to": "Erin",
+        "value": "1"
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "CoSignerPolicy",
+        "reason": {
+          "error": "ModulePathUnsupported"
+        }
+      },
+      "note": "The catch-all wants a co-signature, and a module transaction cannot carry one. Co-signer, extra-signature and Safenet policies refuse every module transaction."
+    },
+    {
+      "do": "tx",
+      "label": "The Allowance Module asks for a rule change",
+      "tx": {
+        "path": "module",
+        "module": "AllowanceModule",
+        "to": "PolicyGuard",
+        "call": {
+          "fn": "requestConfiguration",
+          "configurations": [
+            {
+              "fallback": "CALL",
+              "policy": "AllowPolicy"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "ModuleConfigurationDenied"
+      },
+      "note": "Owners can always ask for a rule change. Modules never can."
+    }
+  ]
+}

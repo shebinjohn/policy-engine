@@ -1,0 +1,185 @@
+{
+  "id": "co-sign-each-step",
+  "chapter": "batches",
+  "order": 14,
+  "title": "Co-Sign Each Step",
+  "summary": "Under a batch the co-signer signs every step. A signature over the whole batch, or one used twice, is refused.",
+  "lesson": "In a batch, the co-signer signs each step, not the batch. Each signature works once, so the same co-signed step cannot appear twice in one batch.",
+  "readme": "policies",
+  "setup": {
+    "balances": {
+      "ETH": "10",
+      "USDC": "10000"
+    },
+    "rules": [
+      {
+        "fallback": "CALL",
+        "policy": "CoSignerPolicy",
+        "config": {
+          "cosigner": "CoSigner"
+        },
+        "note": "Every CALL needs the co-signer"
+      },
+      {
+        "target": "MultiSend",
+        "selector": "multiSend",
+        "operation": "DELEGATECALL",
+        "policy": "MultiSendPolicy",
+        "note": "Lets batches through, checking every step"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "Send a batch the co-signer signed as a whole",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "USDC",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Dave",
+                  "500"
+                ]
+              },
+              "context": {
+                "type": "cosignature",
+                "signer": "CoSigner",
+                "over": "batch"
+              }
+            },
+            {
+              "to": "Erin",
+              "value": "1",
+              "context": {
+                "type": "cosignature",
+                "signer": "CoSigner",
+                "over": "batch"
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "MultiSendPolicy",
+        "reason": {
+          "error": "PolicyReverted",
+          "policy": "CoSignerPolicy",
+          "reason": {
+            "error": "Unauthorized"
+          }
+        }
+      },
+      "note": "The co-signer signed the batch. The policy checks each step against that step's own fingerprint, so the signature does not match."
+    },
+    {
+      "do": "tx",
+      "label": "Send the batch with each step co-signed",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "USDC",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Dave",
+                  "500"
+                ]
+              },
+              "context": {
+                "type": "cosignature",
+                "signer": "CoSigner"
+              }
+            },
+            {
+              "to": "Erin",
+              "value": "1",
+              "context": {
+                "type": "cosignature",
+                "signer": "CoSigner"
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "expectState": {
+        "balances": {
+          "Dave": {
+            "USDC": "500"
+          }
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Pay Dave twice in one batch",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "USDC",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Dave",
+                  "500"
+                ]
+              },
+              "context": {
+                "type": "cosignature",
+                "signer": "CoSigner"
+              }
+            },
+            {
+              "to": "USDC",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Dave",
+                  "500"
+                ]
+              },
+              "context": {
+                "type": "cosignature",
+                "signer": "CoSigner"
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "MultiSendPolicy",
+        "reason": {
+          "error": "PolicyReverted",
+          "policy": "CoSignerPolicy",
+          "reason": {
+            "error": "CoSignatureAlreadySpent"
+          }
+        }
+      },
+      "note": "The two steps are identical, so one signature fits both. The policy spends it on the first step. To pay twice, change the amount or use two transactions."
+    }
+  ]
+}

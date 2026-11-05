@@ -1,0 +1,111 @@
+{
+  "id": "revoke-only",
+  "level": 2,
+  "title": "Revoke, Never Approve",
+  "brief": "After a phishing scare, the security lead wants the Safe to stop granting USDC approvals. Old approvals must still be revocable. The team keeps its permissive catch-all for everything else, for now.",
+  "setup": {
+    "balances": {
+      "ETH": "5",
+      "USDC": "10000"
+    },
+    "rules": [
+      {
+        "fallback": "CALL",
+        "policy": "AllowPolicy",
+        "note": "Allows every CALL without its own rule"
+      }
+    ]
+  },
+  "allowedPolicies": [
+    "AllowPolicy",
+    "DenyPolicy",
+    "ERC20ApprovePolicy"
+  ],
+  "parRules": 2,
+  "tests": [
+    {
+      "label": "Pay Erin 300 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Erin",
+            "300"
+          ]
+        }
+      },
+      "want": "pass"
+    },
+    {
+      "label": "Revoke Mallory's USDC approval",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "approve",
+          "args": [
+            "Mallory",
+            "0"
+          ]
+        }
+      },
+      "want": "pass"
+    },
+    {
+      "label": "Approve Mallory to spend 5000 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "approve",
+          "args": [
+            "Mallory",
+            "5000"
+          ]
+        }
+      },
+      "want": "block"
+    },
+    {
+      "label": "Approve Dave to spend 1 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "approve",
+          "args": [
+            "Dave",
+            "1"
+          ]
+        }
+      },
+      "want": "block"
+    },
+    {
+      "label": "Send 1 ETH to Dave",
+      "tx": {
+        "to": "Dave",
+        "value": "1"
+      },
+      "want": "pass"
+    }
+  ],
+  "hints": [
+    "An exact rule on approve for USDC wins over the catch-all.",
+    "DenyPolicy refuses revokes too: it never looks at the amount.",
+    "The spender allowlist always lets an approval of zero through. What does it allow with nobody on the list?"
+  ],
+  "solution": [
+    {
+      "fallback": "CALL",
+      "policy": "AllowPolicy"
+    },
+    {
+      "target": "USDC",
+      "selector": "approve",
+      "policy": "ERC20ApprovePolicy",
+      "config": {
+        "spenders": []
+      }
+    }
+  ],
+  "explain": "The spender allowlist always lets an approval of zero through, whoever the spender. With nobody on the list, that is all it allows: revokes pass, new approvals do not. DenyPolicy would have blocked the revokes too, leaving old approvals stuck in place."
+}

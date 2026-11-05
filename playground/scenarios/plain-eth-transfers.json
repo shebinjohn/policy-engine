@@ -1,0 +1,91 @@
+{
+  "id": "plain-eth-transfers",
+  "chapter": "policies-at-work",
+  "order": 9,
+  "title": "Plain ETH and Selector Zero",
+  "summary": "NativeTransferPolicy tells a plain ETH transfer from calldata of four zero bytes. AllowPolicy cannot.",
+  "lesson": "Empty calldata and calldata of four zero bytes land on the same rule. Only NativeTransferPolicy checks that the calldata is really empty, so use it for plain ETH transfers.",
+  "readme": "where-the-check-and-the-execution-can-diverge",
+  "setup": {
+    "balances": {
+      "ETH": "10"
+    },
+    "rules": [
+      {
+        "target": "Dave",
+        "selector": "none",
+        "policy": "NativeTransferPolicy",
+        "note": "Plain ETH to Dave"
+      },
+      {
+        "target": "Erin",
+        "selector": "none",
+        "policy": "AllowPolicy",
+        "note": "Any call to Erin that names no function"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "Send 1 ETH to Dave",
+      "tx": {
+        "to": "Dave",
+        "value": "1"
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Send 1 ETH to Dave with four zero bytes",
+      "tx": {
+        "to": "Dave",
+        "value": "1",
+        "data": "0x00000000"
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "NativeTransferPolicy",
+        "reason": {
+          "error": "CalldataNotPermitted"
+        }
+      },
+      "note": "Four zero bytes read as selector zero, the same key as no calldata at all. NativeTransferPolicy looks closer and sees calldata."
+    },
+    {
+      "do": "tx",
+      "label": "Send 1 ETH to Erin with four zero bytes",
+      "tx": {
+        "to": "Erin",
+        "value": "1",
+        "data": "0x00000000"
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "AllowPolicy does not look at calldata. Erin is a person, so nothing runs, but sent to a contract this call would reach the contract's fallback code."
+    },
+    {
+      "do": "tx",
+      "label": "Send 0 ETH to Dave",
+      "tx": {
+        "to": "Dave",
+        "value": "0"
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "NativeTransferPolicy",
+        "reason": {
+          "error": "InvalidTransfer"
+        }
+      },
+      "note": "A plain transfer has to move some ETH."
+    }
+  ]
+}

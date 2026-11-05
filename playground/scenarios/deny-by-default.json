@@ -1,0 +1,73 @@
+{
+  "id": "deny-by-default",
+  "chapter": "how-a-check-works",
+  "order": 1,
+  "title": "Deny by Default",
+  "summary": "A hardened Safe with no rules refuses every transaction, even when the owners sign.",
+  "lesson": "Once the Policy Guard is installed, a transaction runs only if a rule covers it. Owner signatures are still needed, but they are no longer enough.",
+  "readme": "policy-engine",
+  "setup": {
+    "balances": {
+      "ETH": "10",
+      "USDC": "10000"
+    },
+    "rules": []
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "Send 1 ETH to Dave",
+      "tx": {
+        "to": "Dave",
+        "value": "1"
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "AccessDenied",
+        "policy": null
+      },
+      "note": "Two of three owners signed, which satisfies the Safe. The guard still stops it: no rule covers sending ETH to Dave."
+    },
+    {
+      "do": "tx",
+      "label": "Pay Dave 500 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Dave",
+            "500"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "AccessDenied",
+        "policy": null
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Add the Recovery Module",
+      "tx": {
+        "to": "Safe",
+        "call": {
+          "fn": "enableModule",
+          "args": [
+            "RecoveryModule"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "AccessDenied",
+        "policy": null
+      },
+      "note": "Changing the Safe itself is a transaction too. After hardening, adding a module needs a rule like anything else."
+    }
+  ]
+}

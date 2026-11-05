@@ -1,0 +1,113 @@
+{
+  "id": "exact-rule-match",
+  "chapter": "how-a-check-works",
+  "order": 2,
+  "title": "A Rule Is Exact",
+  "summary": "One rule allows USDC transfers. A different function, token or operation finds no rule.",
+  "lesson": "A rule names one contract, one function and one operation. Change any of the three and the rule no longer applies.",
+  "readme": "access-selectors",
+  "setup": {
+    "balances": {
+      "USDC": "10000",
+      "SAFE": "1000"
+    },
+    "rules": [
+      {
+        "target": "USDC",
+        "selector": "transfer",
+        "policy": "AllowPolicy",
+        "note": "Any USDC transfer, to anyone"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "Pay Dave 500 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Dave",
+            "500"
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "expectState": {
+        "balances": {
+          "Dave": {
+            "USDC": "500"
+          }
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Approve Dave to spend 500 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "approve",
+          "args": [
+            "Dave",
+            "500"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "AccessDenied",
+        "policy": null
+      },
+      "note": "Same token, different function. Approving a spender is not a transfer, and it has no rule."
+    },
+    {
+      "do": "tx",
+      "label": "Send Dave 500 SAFE",
+      "tx": {
+        "to": "SAFE",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Dave",
+            "500"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "AccessDenied",
+        "policy": null
+      },
+      "note": "Same function, different token. The rule names USDC only."
+    },
+    {
+      "do": "tx",
+      "label": "Run the USDC transfer as a DELEGATECALL",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Dave",
+            "500"
+          ]
+        },
+        "operation": "DELEGATECALL"
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "AccessDenied",
+        "policy": null
+      },
+      "note": "Same token and function, different operation. A DELEGATECALL would run the USDC code inside the Safe itself, so it has a key of its own, and nothing covers it."
+    }
+  ]
+}

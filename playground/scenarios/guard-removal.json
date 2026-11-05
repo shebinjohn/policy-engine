@@ -1,0 +1,172 @@
+{
+  "id": "guard-removal",
+  "chapter": "changing-the-rules",
+  "order": 22,
+  "title": "Removing the Guard",
+  "summary": "Removing the Policy Guard takes a requested rule, a wait, an apply, and then the removal itself.",
+  "lesson": "Removing the Policy Guard is a rule change like any other: ask for rules that allow removing both guards, wait, apply them, then remove both guards in a later transaction.",
+  "readme": "guard-removal",
+  "setup": {
+    "rules": [
+      {
+        "target": "MultiSend",
+        "selector": "multiSend",
+        "operation": "DELEGATECALL",
+        "policy": "MultiSendPolicy",
+        "note": "Lets batches through, checking every step"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "Ask for rules that allow removing the guards",
+      "tx": {
+        "to": "PolicyGuard",
+        "call": {
+          "fn": "requestConfiguration",
+          "configurations": [
+            {
+              "target": "Safe",
+              "selector": "setGuard",
+              "policy": "AllowPolicy",
+              "note": "Owners may change the transaction guard"
+            },
+            {
+              "target": "Safe",
+              "selector": "setModuleGuard",
+              "policy": "AllowPolicy",
+              "note": "Owners may change the module guard"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "do": "wait",
+      "label": "Wait one hour",
+      "seconds": 3600
+    },
+    {
+      "do": "tx",
+      "label": "Apply and remove in one batch",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "PolicyGuard",
+              "call": {
+                "fn": "applyConfiguration",
+                "configurations": [
+                  {
+                    "target": "Safe",
+                    "selector": "setGuard",
+                    "policy": "AllowPolicy",
+                    "note": "Owners may change the transaction guard"
+                  },
+                  {
+                    "target": "Safe",
+                    "selector": "setModuleGuard",
+                    "policy": "AllowPolicy",
+                    "note": "Owners may change the module guard"
+                  }
+                ]
+              }
+            },
+            {
+              "to": "Safe",
+              "call": {
+                "fn": "setGuard",
+                "args": [
+                  "Zero"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "MultiSendPolicy",
+        "reason": {
+          "error": "AccessDenied",
+          "policy": null
+        }
+      },
+      "note": "Every step is checked before any of them runs, so removing the guard is checked against the old rules, which do not allow it."
+    },
+    {
+      "do": "tx",
+      "label": "Apply the rules",
+      "tx": {
+        "to": "PolicyGuard",
+        "call": {
+          "fn": "applyConfiguration",
+          "configurations": [
+            {
+              "target": "Safe",
+              "selector": "setGuard",
+              "policy": "AllowPolicy",
+              "note": "Owners may change the transaction guard"
+            },
+            {
+              "target": "Safe",
+              "selector": "setModuleGuard",
+              "policy": "AllowPolicy",
+              "note": "Owners may change the module guard"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Remove both guards in one batch",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "Safe",
+              "call": {
+                "fn": "setGuard",
+                "args": [
+                  "Zero"
+                ]
+              }
+            },
+            {
+              "to": "Safe",
+              "call": {
+                "fn": "setModuleGuard",
+                "args": [
+                  "Zero"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "expectState": {
+        "txGuard": null,
+        "moduleGuard": null
+      }
+    }
+  ]
+}

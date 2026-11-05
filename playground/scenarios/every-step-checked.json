@@ -1,0 +1,175 @@
+{
+  "id": "every-step-checked",
+  "chapter": "batches",
+  "order": 11,
+  "title": "Every Step Is Checked",
+  "summary": "A payroll batch passes only if the batch has a rule and every step inside it passes its own.",
+  "lesson": "A batch needs two kinds of rules: one that opens the batch, and one for every step inside it. If any step is refused, nothing in the batch runs.",
+  "readme": "policies",
+  "setup": {
+    "balances": {
+      "ETH": "5",
+      "USDC": "20000"
+    },
+    "rules": [
+      {
+        "target": "MultiSend",
+        "selector": "multiSend",
+        "operation": "DELEGATECALL",
+        "policy": "MultiSendPolicy",
+        "note": "Lets batches through, checking every step"
+      },
+      {
+        "target": "USDC",
+        "selector": "transfer",
+        "policy": "ERC20TransferPolicy",
+        "config": {
+          "recipients": [
+            {
+              "account": "Dave",
+              "permission": "ALWAYS"
+            },
+            {
+              "account": "Erin",
+              "permission": "ALWAYS"
+            }
+          ]
+        },
+        "note": "USDC to Dave or Erin"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "Run payroll for Dave and Erin",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "USDC",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Dave",
+                  "4000"
+                ]
+              }
+            },
+            {
+              "to": "USDC",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Erin",
+                  "3500"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "expectState": {
+        "balances": {
+          "Dave": {
+            "USDC": "4000"
+          },
+          "Erin": {
+            "USDC": "3500"
+          }
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Run payroll with Mallory slipped in",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "USDC",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Dave",
+                  "4000"
+                ]
+              }
+            },
+            {
+              "to": "USDC",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Mallory",
+                  "3500"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "MultiSendPolicy",
+        "reason": {
+          "error": "PolicyReverted",
+          "policy": "ERC20TransferPolicy",
+          "reason": {
+            "error": "Unauthorized"
+          }
+        }
+      },
+      "note": "Dave's step was fine. One refused step refuses the whole batch, so Dave is not paid either."
+    },
+    {
+      "do": "tx",
+      "label": "Add an ETH payment to the batch",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "USDC",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Dave",
+                  "4000"
+                ]
+              }
+            },
+            {
+              "to": "Erin",
+              "value": "1"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "MultiSendPolicy",
+        "reason": {
+          "error": "AccessDenied",
+          "policy": null
+        }
+      },
+      "note": "The batch rule only opens the batch. Each step needs a rule of its own, and nothing covers sending ETH."
+    }
+  ]
+}

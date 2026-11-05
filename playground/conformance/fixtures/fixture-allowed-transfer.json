@@ -1,0 +1,61 @@
+{
+  "id": "fixture-allowed-transfer",
+  "chapter": "Harness fixtures",
+  "order": 9001,
+  "title": "Allowed Transfer",
+  "summary": "An allowlisted USDC transfer goes through; the same transfer to someone else is blocked.",
+  "lesson": "ERC20TransferPolicy reads the recipient out of the calldata and checks it against the allowlist for that token.",
+  "setup": {
+    "balances": { "ETH": "1", "USDC": "1000" },
+    "rules": [
+      {
+        "target": "USDC",
+        "selector": "transfer",
+        "policy": "ERC20TransferPolicy",
+        "config": { "recipients": [{ "account": "Dave", "permission": "ALWAYS" }] }
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "Pay Dave 100 USDC",
+      "tx": { "to": "USDC", "call": { "fn": "transfer", "args": ["Dave", "100"] } },
+      "expect": { "ok": true },
+      "expectState": {
+        "balances": { "Dave": { "USDC": "100" }, "Safe": { "USDC": "900", "ETH": "1" } },
+        "nonce": 1,
+        "txGuard": "PolicyGuard",
+        "moduleGuard": "PolicyGuard",
+        "threshold": 2,
+        "owners": ["Alice", "Bob", "Carol"]
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Pay Mallory 100 USDC",
+      "tx": { "to": "USDC", "call": { "fn": "transfer", "args": ["Mallory", "100"] } },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "ERC20TransferPolicy",
+        "reason": { "error": "Unauthorized" }
+      },
+      "expectState": { "balances": { "Mallory": { "USDC": "0" }, "Safe": { "USDC": "900" } }, "nonce": 1 }
+    },
+    {
+      "do": "tx",
+      "label": "Pay Dave more than the Safe holds",
+      "tx": { "to": "USDC", "call": { "fn": "transfer", "args": ["Dave", "5000"] } },
+      "expect": { "ok": false, "by": "execution", "error": "ERC20InsufficientBalance" },
+      "expectState": { "balances": { "Dave": { "USDC": "100" } }, "nonce": 1 }
+    },
+    {
+      "do": "tx",
+      "label": "Only one owner signs",
+      "tx": { "to": "USDC", "signers": ["Alice"], "call": { "fn": "transfer", "args": ["Dave", "1"] } },
+      "expect": { "ok": false, "by": "safe" }
+    }
+  ]
+}

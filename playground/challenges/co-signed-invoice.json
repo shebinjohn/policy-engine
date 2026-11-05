@@ -1,0 +1,166 @@
+{
+  "id": "co-signed-invoice",
+  "level": 4,
+  "title": "The Co-Signed Invoice",
+  "brief": "The DAO's co-signer reviews everything the owners send. Dave, the vendor, is trusted: his USDC needs no co-signer. Erin sent one USDC invoice for her audit, and the co-signer has already signed it.",
+  "setup": {
+    "balances": {
+      "ETH": "5",
+      "USDC": "20000"
+    },
+    "rules": [
+      {
+        "fallback": "CALL",
+        "policy": "CoSignerPolicy",
+        "config": {
+          "cosigner": "CoSigner"
+        },
+        "note": "Everything else needs the co-signer"
+      },
+      {
+        "target": "USDC",
+        "selector": "transfer",
+        "policy": "ERC20TransferPolicy",
+        "config": {
+          "recipients": [
+            {
+              "account": "Dave",
+              "permission": "ALWAYS"
+            }
+          ]
+        },
+        "note": "Dave is paid without the co-signer"
+      }
+    ]
+  },
+  "allowedPolicies": [
+    "CoSignerPolicy",
+    "ERC20TransferPolicy",
+    "OneTimeAllowPolicy",
+    "AllowPolicy"
+  ],
+  "parRules": 2,
+  "testMode": "sequence",
+  "tests": [
+    {
+      "label": "Pay Dave 1200 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Dave",
+            "1200"
+          ]
+        }
+      },
+      "want": "pass"
+    },
+    {
+      "label": "Pay Erin's 3000 USDC invoice, co-signed",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Erin",
+            "3000"
+          ]
+        },
+        "context": {
+          "type": "cosignature",
+          "signer": "CoSigner"
+        }
+      },
+      "want": "pass"
+    },
+    {
+      "label": "Pay Erin 3000 USDC again, co-signed",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Erin",
+            "3000"
+          ]
+        },
+        "context": {
+          "type": "cosignature",
+          "signer": "CoSigner"
+        }
+      },
+      "want": "block"
+    },
+    {
+      "label": "Pay Mallory 3000 USDC, co-signed",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Mallory",
+            "3000"
+          ]
+        },
+        "context": {
+          "type": "cosignature",
+          "signer": "CoSigner"
+        }
+      },
+      "want": "block"
+    },
+    {
+      "label": "Send 1 ETH to Erin, co-signed",
+      "tx": {
+        "to": "Erin",
+        "value": "1",
+        "context": {
+          "type": "cosignature",
+          "signer": "CoSigner"
+        }
+      },
+      "want": "pass"
+    },
+    {
+      "label": "Send 1 ETH to Mallory",
+      "tx": {
+        "to": "Mallory",
+        "value": "1"
+      },
+      "want": "block"
+    }
+  ],
+  "hints": [
+    "The co-signature on Erin's payment is not the problem. Which rule decides a USDC transfer?",
+    "Only one policy checks each call. The USDC rule decides alone, and the catch-all is never asked.",
+    "Add Erin to the USDC allowlist with ONCE."
+  ],
+  "solution": [
+    {
+      "fallback": "CALL",
+      "policy": "CoSignerPolicy",
+      "config": {
+        "cosigner": "CoSigner"
+      }
+    },
+    {
+      "target": "USDC",
+      "selector": "transfer",
+      "policy": "ERC20TransferPolicy",
+      "config": {
+        "recipients": [
+          {
+            "account": "Dave",
+            "permission": "ALWAYS"
+          },
+          {
+            "account": "Erin",
+            "permission": "ONCE"
+          }
+        ]
+      }
+    }
+  ],
+  "explain": "Each call is checked by exactly one policy. Once USDC transfers have their own rule, the co-signer catch-all never sees them, so a co-signature cannot add Erin. Put her on the allowlist instead, with ONCE so the invoice is paid one time. Policies do not stack: to combine two checks you need one policy that does both."
+}

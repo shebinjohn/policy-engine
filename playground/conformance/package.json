@@ -1,0 +1,6 @@
+{
+  "name": "policy-engine-playground-conformance",
+  "private": true,
+  "type": "commonjs",
+  "description": "Replays playground scenarios and challenges against the real contracts in Hardhat. Loaded by the policy-engine Hardhat project (ts-node, CommonJS)."
+}

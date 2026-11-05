@@ -1,0 +1,112 @@
+{
+  "id": "guard-is-off-limits",
+  "chapter": "modules-and-guards",
+  "order": 18,
+  "title": "No Shortcuts",
+  "summary": "Instant rule changes are refused once the Policy Guard guards the Safe. Asking for a change always works.",
+  "lesson": "Once the Policy Guard is installed in either slot, rules change only through the waiting period. No rule, not even a catch-all that allows everything, can reach the guard itself.",
+  "readme": "setup-with-safe",
+  "setup": {
+    "guards": {
+      "transaction": false,
+      "module": true
+    },
+    "rules": [
+      {
+        "fallback": "CALL",
+        "policy": "AllowPolicy",
+        "note": "Allows every CALL without its own rule"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "Change the rules instantly",
+      "tx": {
+        "to": "PolicyGuard",
+        "call": {
+          "fn": "configureImmediately",
+          "configurations": [
+            {
+              "target": "USDC",
+              "selector": "transfer",
+              "policy": "AllowPolicy"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "GuardAlreadyEnabled"
+      },
+      "note": "Only the module guard is installed, so nothing checks this owner transaction. The Policy Guard refuses it anyway, because it already guards the Safe."
+    },
+    {
+      "do": "tx",
+      "label": "Install the transaction guard",
+      "tx": {
+        "to": "Safe",
+        "call": {
+          "fn": "setGuard",
+          "args": [
+            "PolicyGuard"
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "There is no transaction guard yet, so this runs unchecked.",
+      "expectState": {
+        "txGuard": "PolicyGuard",
+        "moduleGuard": "PolicyGuard"
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Try the instant change again",
+      "tx": {
+        "to": "PolicyGuard",
+        "call": {
+          "fn": "configureImmediately",
+          "configurations": [
+            {
+              "target": "USDC",
+              "selector": "transfer",
+              "policy": "AllowPolicy"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "GuardTargetDenied"
+      },
+      "note": "Now the guard checks it first. The catch-all allows every call, but no rule can open the guard itself."
+    },
+    {
+      "do": "tx",
+      "label": "Ask for the change instead",
+      "tx": {
+        "to": "PolicyGuard",
+        "call": {
+          "fn": "requestConfiguration",
+          "configurations": [
+            {
+              "target": "USDC",
+              "selector": "transfer",
+              "policy": "AllowPolicy"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "Asking for, applying and cancelling changes are always allowed, with no rule needed. The change itself still has to wait."
+    }
+  ]
+}

@@ -1,0 +1,202 @@
+{
+  "id": "monthly-payroll",
+  "level": 3,
+  "title": "Monthly Payroll",
+  "brief": "Payroll goes out once a month as one batch: USDC to Dave and to Erin, signed once by the owners. A batch that pays anyone else must not go through, and neither may a payment to a stranger on its own.",
+  "setup": {
+    "balances": {
+      "ETH": "5",
+      "USDC": "50000"
+    },
+    "rules": [
+      {
+        "target": "USDC",
+        "selector": "transfer",
+        "policy": "ERC20TransferPolicy",
+        "config": {
+          "recipients": [
+            {
+              "account": "Dave",
+              "permission": "ALWAYS"
+            },
+            {
+              "account": "Erin",
+              "permission": "ALWAYS"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "allowedPolicies": [
+    "MultiSendPolicy",
+    "ERC20TransferPolicy",
+    "AllowPolicy",
+    "DenyPolicy"
+  ],
+  "parRules": 2,
+  "tests": [
+    {
+      "label": "Run payroll: Dave 4000 USDC, Erin 3500 USDC",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "USDC",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Dave",
+                  "4000"
+                ]
+              }
+            },
+            {
+              "to": "USDC",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Erin",
+                  "3500"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "want": "pass"
+    },
+    {
+      "label": "Run payroll with Mallory instead of Erin",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "USDC",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Dave",
+                  "4000"
+                ]
+              }
+            },
+            {
+              "to": "USDC",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Mallory",
+                  "3500"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "want": "block"
+    },
+    {
+      "label": "Run payroll with 1 ETH to Mallory added",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "USDC",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Dave",
+                  "4000"
+                ]
+              }
+            },
+            {
+              "to": "USDC",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Erin",
+                  "3500"
+                ]
+              }
+            },
+            {
+              "to": "Mallory",
+              "value": "1"
+            }
+          ]
+        }
+      },
+      "want": "block"
+    },
+    {
+      "label": "Pay Erin 3500 USDC on her own",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Erin",
+            "3500"
+          ]
+        }
+      },
+      "want": "pass"
+    },
+    {
+      "label": "Pay Mallory 3500 USDC on her own",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Mallory",
+            "3500"
+          ]
+        }
+      },
+      "want": "block"
+    }
+  ],
+  "hints": [
+    "A batch is a DELEGATECALL to multiSend on MultiSend. It needs a rule of its own.",
+    "AllowPolicy on the batch would wave through whatever is inside. MultiSendPolicy checks each step against your other rules.",
+    "Add MultiSendPolicy on MultiSend, function multiSend, operation DELEGATECALL."
+  ],
+  "solution": [
+    {
+      "target": "MultiSend",
+      "selector": "multiSend",
+      "operation": "DELEGATECALL",
+      "policy": "MultiSendPolicy"
+    },
+    {
+      "target": "USDC",
+      "selector": "transfer",
+      "policy": "ERC20TransferPolicy",
+      "config": {
+        "recipients": [
+          {
+            "account": "Dave",
+            "permission": "ALWAYS"
+          },
+          {
+            "account": "Erin",
+            "permission": "ALWAYS"
+          }
+        ]
+      }
+    }
+  ],
+  "explain": "MultiSendPolicy opens the batch and then runs every step through the rule table, as if each were sent alone. So a batch needs two rules: one for the batch and one for what is inside it. One step that fails its rule blocks the whole batch."
+}

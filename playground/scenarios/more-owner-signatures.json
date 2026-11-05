@@ -1,0 +1,112 @@
+{
+  "id": "more-owner-signatures",
+  "chapter": "policies-at-work",
+  "order": 10,
+  "title": "Extra Owner Signatures",
+  "summary": "Adding an owner needs every owner's signature, not just the Safe's two of three.",
+  "lesson": "IncreasedThresholdPolicy raises the bar for one rule: more owner signatures than the threshold, sent along with the transaction. On a two-of-three Safe it can ask for all three.",
+  "readme": "policies",
+  "setup": {
+    "rules": [
+      {
+        "target": "Safe",
+        "selector": "addOwnerWithThreshold",
+        "policy": "IncreasedThresholdPolicy",
+        "config": {
+          "maxAbsent": 0
+        },
+        "note": "Adding an owner needs every owner"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "Add Erin as an owner with two signatures",
+      "tx": {
+        "to": "Safe",
+        "call": {
+          "fn": "addOwnerWithThreshold",
+          "args": [
+            "Erin",
+            2
+          ]
+        },
+        "context": {
+          "type": "ownerSignatures",
+          "signers": [
+            "Alice",
+            "Bob"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "IncreasedThresholdPolicy",
+        "reason": {
+          "error": "GS020"
+        }
+      },
+      "note": "Two signatures satisfy the Safe. The policy asks for all three owners and finds two."
+    },
+    {
+      "do": "tx",
+      "label": "Add Erin, with Mallory as the third signature",
+      "tx": {
+        "to": "Safe",
+        "call": {
+          "fn": "addOwnerWithThreshold",
+          "args": [
+            "Erin",
+            2
+          ]
+        },
+        "context": {
+          "type": "ownerSignatures",
+          "signers": [
+            "Alice",
+            "Bob",
+            "Mallory"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "IncreasedThresholdPolicy",
+        "reason": {
+          "error": "GS026"
+        }
+      },
+      "note": "Mallory is not an owner, so her signature does not count."
+    },
+    {
+      "do": "tx",
+      "label": "Add Erin as an owner, all three sign",
+      "tx": {
+        "to": "Safe",
+        "call": {
+          "fn": "addOwnerWithThreshold",
+          "args": [
+            "Erin",
+            2
+          ]
+        },
+        "context": {
+          "type": "ownerSignatures",
+          "signers": [
+            "Alice",
+            "Bob",
+            "Carol"
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      }
+    }
+  ]
+}

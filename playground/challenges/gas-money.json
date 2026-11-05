@@ -1,0 +1,75 @@
+{
+  "id": "gas-money",
+  "level": 2,
+  "title": "Gas Money for Erin",
+  "brief": "Erin runs the treasury's bots and needs ETH for gas now and then. The owners want to send her plain ETH, as often as needed, and nothing else: no contract calls, nothing hidden in the calldata.",
+  "setup": {
+    "balances": {
+      "ETH": "10"
+    },
+    "rules": []
+  },
+  "allowedPolicies": [
+    "AllowPolicy",
+    "NativeTransferPolicy",
+    "OneTimeAllowPolicy"
+  ],
+  "parRules": 1,
+  "testMode": "sequence",
+  "tests": [
+    {
+      "label": "Send 0.5 ETH to Erin",
+      "tx": {
+        "to": "Erin",
+        "value": "0.5"
+      },
+      "want": "pass"
+    },
+    {
+      "label": "Send Erin another 0.5 ETH",
+      "tx": {
+        "to": "Erin",
+        "value": "0.5"
+      },
+      "want": "pass"
+    },
+    {
+      "label": "Send 0.5 ETH to Erin with four zero bytes of calldata",
+      "tx": {
+        "to": "Erin",
+        "value": "0.5",
+        "data": "0x00000000"
+      },
+      "want": "block"
+    },
+    {
+      "label": "Send 0.5 ETH to Dave",
+      "tx": {
+        "to": "Dave",
+        "value": "0.5"
+      },
+      "want": "block"
+    },
+    {
+      "label": "Send 2 ETH to Erin",
+      "tx": {
+        "to": "Erin",
+        "value": "2"
+      },
+      "want": "pass"
+    }
+  ],
+  "hints": [
+    "Plain ETH has no calldata. Its rule uses Erin as the target and the empty selector, none.",
+    "Four zero bytes of calldata land on the same rule as no calldata at all. AllowPolicy cannot tell them apart.",
+    "NativeTransferPolicy on Erin, selector none."
+  ],
+  "solution": [
+    {
+      "target": "Erin",
+      "selector": "none",
+      "policy": "NativeTransferPolicy"
+    }
+  ],
+  "explain": "Empty calldata and four zero bytes both read as selector zero, so they share Erin's rule. AllowPolicy lets both through, and sent to a contract with a fallback, the zero bytes would run code. NativeTransferPolicy checks that the calldata is truly empty, that it is a plain CALL and that some ETH moves."
+}

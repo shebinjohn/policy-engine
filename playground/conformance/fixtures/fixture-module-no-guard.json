@@ -1,0 +1,35 @@
+{
+  "id": "fixture-module-no-guard",
+  "chapter": "Harness fixtures",
+  "order": 9005,
+  "title": "Module Without Guard",
+  "summary": "Without a module guard a module bypasses every policy, and a failed call returns false instead of reverting.",
+  "lesson": "Install both guards.",
+  "setup": {
+    "modules": ["RecoveryModule"],
+    "balances": { "ETH": "1", "USDC": "100" },
+    "guards": { "transaction": true, "module": false }
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "Recovery module drains 1 ETH to Mallory",
+      "tx": { "path": "module", "module": "RecoveryModule", "to": "Mallory", "value": "1" },
+      "expect": { "ok": true },
+      "expectState": { "balances": { "Mallory": { "ETH": "1" }, "Safe": { "ETH": "0" } }, "moduleGuard": null, "txGuard": "PolicyGuard" }
+    },
+    {
+      "do": "tx",
+      "label": "Module transfer that fails",
+      "tx": { "path": "module", "module": "RecoveryModule", "to": "USDC", "call": { "fn": "transfer", "args": ["Mallory", "500"] } },
+      "expect": { "ok": false, "by": "execution", "error": "CallFailed" },
+      "expectState": { "balances": { "Mallory": { "USDC": "0" } } }
+    },
+    {
+      "do": "tx",
+      "label": "Owners are still checked",
+      "tx": { "to": "Dave", "value": "0" },
+      "expect": { "ok": false, "by": "guard", "error": "AccessDenied", "policy": null }
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "id": "fixture-module-path",
+  "chapter": "Harness fixtures",
+  "order": 9004,
+  "title": "Module Path",
+  "summary": "An allowed module can move funds; a module that is not enabled, or a module reaching for the configuration, cannot.",
+  "lesson": "Module transactions skip owner signatures but still go through the module guard.",
+  "setup": {
+    "modules": ["AllowanceModule"],
+    "balances": { "ETH": "1", "USDC": "100" },
+    "rules": [{ "fallback": "CALL", "policy": "AllowedModulePolicy", "config": { "module": "AllowanceModule", "allowed": true } }]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "Allowance module pays Dave 0.25 ETH",
+      "tx": { "path": "module", "module": "AllowanceModule", "to": "Dave", "value": "0.25" },
+      "expect": { "ok": true },
+      "expectState": { "balances": { "Dave": { "ETH": "0.25" }, "Safe": { "ETH": "0.75" } }, "nonce": 0, "modules": ["AllowanceModule"] }
+    },
+    {
+      "do": "tx",
+      "label": "Recovery module is not enabled",
+      "tx": { "path": "module", "module": "RecoveryModule", "to": "Mallory", "value": "0.25" },
+      "expect": { "ok": false, "by": "safe", "error": "GS104" }
+    },
+    {
+      "do": "tx",
+      "label": "Owners hit the module-only fallback",
+      "tx": { "to": "Dave", "value": "0.25" },
+      "expect": { "ok": false, "by": "guard", "error": "PolicyReverted", "policy": "AllowedModulePolicy", "reason": { "error": "InvalidModule" } }
+    },
+    {
+      "do": "tx",
+      "label": "Module requests a configuration change",
+      "tx": {
+        "path": "module",
+        "module": "AllowanceModule",
+        "to": "PolicyGuard",
+        "call": { "fn": "requestConfiguration", "configurations": [{ "fallback": "CALL", "policy": "AllowPolicy" }] }
+      },
+      "expect": { "ok": false, "by": "guard", "error": "ModuleConfigurationDenied" }
+    },
+    {
+      "do": "tx",
+      "label": "Module transfer that fails during execution",
+      "tx": { "path": "module", "module": "AllowanceModule", "to": "USDC", "call": { "fn": "transfer", "args": ["Dave", "500"] } },
+      "expect": { "ok": false, "by": "guard", "error": "ModuleExecutionFailed" },
+      "expectState": { "balances": { "Dave": { "USDC": "0" }, "Safe": { "USDC": "100" } } }
+    }
+  ]
+}

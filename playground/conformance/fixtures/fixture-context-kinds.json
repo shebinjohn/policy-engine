@@ -1,0 +1,192 @@
+{
+  "id": "fixture-context-kinds",
+  "chapter": "Harness fixtures",
+  "order": 9006,
+  "title": "Context Kinds",
+  "summary": "Safenet attestations and extra owner signatures travel in the signatures tail.",
+  "lesson": "The harness produces real FROST attestations and real owner signatures for the policies to verify.",
+  "setup": {
+    "balances": {
+      "ETH": "5"
+    },
+    "rules": [
+      {
+        "target": "Dave",
+        "selector": "none",
+        "policy": "SafenetPolicy"
+      },
+      {
+        "target": "Erin",
+        "selector": "none",
+        "policy": "IncreasedThresholdPolicy",
+        "config": {
+          "maxAbsent": 0
+        }
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "Attested transfer to Dave",
+      "tx": {
+        "to": "Dave",
+        "value": "1",
+        "context": {
+          "type": "attestation",
+          "key": "trusted",
+          "valid": true
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "expectState": {
+        "balances": {
+          "Dave": {
+            "ETH": "1"
+          }
+        },
+        "nonce": 1
+      }
+    },
+    {
+      "do": "tx",
+      "label": "No attestation",
+      "tx": {
+        "to": "Dave",
+        "value": "1"
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "SafenetPolicy",
+        "reason": {
+          "error": "MalformedAttestation"
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Attestation from an untrusted key",
+      "tx": {
+        "to": "Dave",
+        "value": "1",
+        "context": {
+          "type": "attestation",
+          "key": "untrusted",
+          "valid": true
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "SafenetPolicy",
+        "reason": {
+          "error": "UntrustedAttestationKey"
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Corrupted attestation",
+      "tx": {
+        "to": "Dave",
+        "value": "1",
+        "context": {
+          "type": "attestation",
+          "key": "trusted",
+          "valid": false
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "SafenetPolicy",
+        "reason": {
+          "error": "InvalidMulMulAddWitness"
+        }
+      },
+      "note": "SPEC \u00a78 calls this InvalidSignature; on chain FROST.verify fails inside Secp256k1.mulmuladd with InvalidMulMulAddWitness()."
+    },
+    {
+      "do": "tx",
+      "label": "All three owners sign for Erin",
+      "tx": {
+        "to": "Erin",
+        "value": "1",
+        "context": {
+          "type": "ownerSignatures",
+          "signers": [
+            "Alice",
+            "Bob",
+            "Carol"
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "expectState": {
+        "balances": {
+          "Erin": {
+            "ETH": "1"
+          }
+        },
+        "nonce": 2
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Only two owners sign for Erin",
+      "tx": {
+        "to": "Erin",
+        "value": "1",
+        "context": {
+          "type": "ownerSignatures",
+          "signers": [
+            "Alice",
+            "Bob"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "IncreasedThresholdPolicy",
+        "reason": {
+          "error": "GS020"
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Mallory instead of Carol",
+      "tx": {
+        "to": "Erin",
+        "value": "1",
+        "context": {
+          "type": "ownerSignatures",
+          "signers": [
+            "Alice",
+            "Bob",
+            "Mallory"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "IncreasedThresholdPolicy",
+        "reason": {
+          "error": "GS026"
+        }
+      }
+    }
+  ]
+}

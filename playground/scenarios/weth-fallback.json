@@ -1,0 +1,85 @@
+{
+  "id": "weth-fallback",
+  "chapter": "rules-and-catch-all",
+  "order": 6,
+  "title": "The WETH Back Door",
+  "summary": "DenyPolicy blocks deposit on WETH, yet the Safe still wraps ETH through the catch-all.",
+  "lesson": "A rule blocks a function, not an outcome. WETH wraps any ETH it receives, whatever the call says, so under a permissive catch-all a DenyPolicy on deposit does not stop wrapping.",
+  "readme": "where-the-check-and-the-execution-can-diverge",
+  "setup": {
+    "balances": {
+      "ETH": "10"
+    },
+    "rules": [
+      {
+        "fallback": "CALL",
+        "policy": "AllowPolicy",
+        "note": "Allows every CALL without its own rule"
+      },
+      {
+        "target": "WETH",
+        "selector": "deposit",
+        "policy": "DenyPolicy",
+        "note": "Meant to stop wrapping ETH"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "Wrap 1 ETH with deposit",
+      "tx": {
+        "to": "WETH",
+        "value": "1",
+        "call": {
+          "fn": "deposit"
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "AccessDenied",
+        "policy": "DenyPolicy"
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Send 1 ETH to WETH with no calldata",
+      "tx": {
+        "to": "WETH",
+        "value": "1"
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "No calldata means selector zero, and WETH has no rule for it. The catch-all allows the call, and WETH wraps the ETH all the same.",
+      "expectState": {
+        "balances": {
+          "Safe": {
+            "WETH": "1"
+          }
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Send 1 ETH to WETH calling a made-up function",
+      "tx": {
+        "to": "WETH",
+        "value": "1",
+        "data": "0x12345678"
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "Any function WETH does not have runs the same wrapping code. A blocklist cannot name them all.",
+      "expectState": {
+        "balances": {
+          "Safe": {
+            "WETH": "2"
+          }
+        }
+      }
+    }
+  ]
+}

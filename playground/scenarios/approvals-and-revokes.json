@@ -1,0 +1,115 @@
+{
+  "id": "approvals-and-revokes",
+  "chapter": "policies-at-work",
+  "order": 8,
+  "title": "Approvals and Revokes",
+  "summary": "A spender allowlist approves Dave once, refuses Mallory, and always lets a revoke through.",
+  "lesson": "ERC20ApprovePolicy limits who may be approved to spend the Safe's tokens. Revoking, an approval of zero, is always allowed, so cleaning up never waits for a rule change.",
+  "readme": "policies",
+  "setup": {
+    "balances": {
+      "USDC": "10000"
+    },
+    "rules": [
+      {
+        "target": "USDC",
+        "selector": "approve",
+        "policy": "ERC20ApprovePolicy",
+        "config": {
+          "spenders": [
+            {
+              "account": "Dave",
+              "permission": "ONCE"
+            }
+          ]
+        },
+        "note": "Dave may be approved once"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "Approve Dave to spend 1000 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "approve",
+          "args": [
+            "Dave",
+            "1000"
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Approve Dave to spend 2000 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "approve",
+          "args": [
+            "Dave",
+            "2000"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "ERC20ApprovePolicy",
+        "reason": {
+          "error": "Unauthorized"
+        }
+      },
+      "note": "Dave's permission was ONCE, and the first approval used it."
+    },
+    {
+      "do": "tx",
+      "label": "Revoke Dave's approval",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "approve",
+          "args": [
+            "Dave",
+            "0"
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "Dave's permission is used up, but a revoke needs none. An approval of zero always passes, for any spender."
+    },
+    {
+      "do": "tx",
+      "label": "Approve Mallory to spend 1 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "approve",
+          "args": [
+            "Mallory",
+            "1"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "ERC20ApprovePolicy",
+        "reason": {
+          "error": "Unauthorized"
+        }
+      },
+      "note": "Any amount above zero needs the spender on the list."
+    }
+  ]
+}

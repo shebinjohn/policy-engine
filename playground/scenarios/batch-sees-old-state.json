@@ -1,0 +1,143 @@
+{
+  "id": "batch-sees-old-state",
+  "chapter": "batches",
+  "order": 13,
+  "title": "Batches See the Old Safe",
+  "summary": "A batch raises the threshold and makes a payment. The payment is checked against the old threshold.",
+  "lesson": "Every step of a batch is checked before any of them runs, against the Safe as it was before the batch. Change the threshold or the owners in a transaction of their own.",
+  "readme": "where-the-check-and-the-execution-can-diverge",
+  "setup": {
+    "threshold": 1,
+    "balances": {
+      "USDC": "10000"
+    },
+    "rules": [
+      {
+        "target": "MultiSend",
+        "selector": "multiSend",
+        "operation": "DELEGATECALL",
+        "policy": "MultiSendPolicy",
+        "note": "Lets batches through, checking every step"
+      },
+      {
+        "target": "Safe",
+        "selector": "changeThreshold",
+        "policy": "AllowPolicy",
+        "note": "Owners may change the threshold"
+      },
+      {
+        "target": "USDC",
+        "selector": "transfer",
+        "policy": "IncreasedThresholdPolicy",
+        "config": {
+          "maxAbsent": 2
+        },
+        "note": "USDC needs one owner more than the threshold"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "Pay Dave 1000 USDC with two owner signatures",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Dave",
+            "1000"
+          ]
+        },
+        "context": {
+          "type": "ownerSignatures",
+          "signers": [
+            "Alice",
+            "Bob"
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "The threshold is one, so the policy asks for two."
+    },
+    {
+      "do": "tx",
+      "label": "Raise the threshold and pay Dave in one batch",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "Safe",
+              "call": {
+                "fn": "changeThreshold",
+                "args": [
+                  2
+                ]
+              }
+            },
+            {
+              "to": "USDC",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Dave",
+                  "1000"
+                ]
+              },
+              "context": {
+                "type": "ownerSignatures",
+                "signers": [
+                  "Alice",
+                  "Bob"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "The payment is checked before the threshold changes, so two signatures are still enough. Once the batch has run, the same payment needs three.",
+      "expectState": {
+        "threshold": 2
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Pay Dave 1000 USDC with two owner signatures",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Dave",
+            "1000"
+          ]
+        },
+        "context": {
+          "type": "ownerSignatures",
+          "signers": [
+            "Alice",
+            "Bob"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "IncreasedThresholdPolicy",
+        "reason": {
+          "error": "GS020"
+        }
+      },
+      "note": "On its own, the payment now needs all three owners."
+    }
+  ]
+}

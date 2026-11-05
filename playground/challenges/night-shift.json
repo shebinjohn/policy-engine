@@ -1,0 +1,206 @@
+{
+  "id": "night-shift",
+  "level": 5,
+  "title": "The Night Shift",
+  "brief": "Overnight, the owners sign and an automated co-signer approves each transaction. Batches are common, and the co-signer signs every step. Dave, the vendor, can be sent plain ETH without waiting for the co-signer. No one may add an owner, whoever co-signs.",
+  "setup": {
+    "balances": {
+      "ETH": "10",
+      "USDC": "20000"
+    },
+    "rules": [
+      {
+        "fallback": "CALL",
+        "policy": "CoSignerPolicy",
+        "config": {
+          "cosigner": "CoSigner"
+        },
+        "note": "Everything needs the co-signer"
+      }
+    ]
+  },
+  "allowedPolicies": [
+    "CoSignerPolicy",
+    "MultiSendPolicy",
+    "DenyPolicy",
+    "NativeTransferPolicy",
+    "AllowPolicy"
+  ],
+  "parRules": 4,
+  "tests": [
+    {
+      "label": "Pay Dave and Erin 500 USDC each in a batch, every step co-signed",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "USDC",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Dave",
+                  "500"
+                ]
+              },
+              "context": {
+                "type": "cosignature",
+                "signer": "CoSigner"
+              }
+            },
+            {
+              "to": "USDC",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Erin",
+                  "500"
+                ]
+              },
+              "context": {
+                "type": "cosignature",
+                "signer": "CoSigner"
+              }
+            }
+          ]
+        }
+      },
+      "want": "pass"
+    },
+    {
+      "label": "The same batch, co-signed as a whole",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "USDC",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Dave",
+                  "500"
+                ]
+              },
+              "context": {
+                "type": "cosignature",
+                "signer": "CoSigner",
+                "over": "batch"
+              }
+            },
+            {
+              "to": "USDC",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Erin",
+                  "500"
+                ]
+              },
+              "context": {
+                "type": "cosignature",
+                "signer": "CoSigner",
+                "over": "batch"
+              }
+            }
+          ]
+        }
+      },
+      "want": "block"
+    },
+    {
+      "label": "Send 1 ETH to Erin, co-signed",
+      "tx": {
+        "to": "Erin",
+        "value": "1",
+        "context": {
+          "type": "cosignature",
+          "signer": "CoSigner"
+        }
+      },
+      "want": "pass"
+    },
+    {
+      "label": "Send 1 ETH to Dave",
+      "tx": {
+        "to": "Dave",
+        "value": "1"
+      },
+      "want": "pass"
+    },
+    {
+      "label": "Send 1 ETH to Dave with four zero bytes of calldata",
+      "tx": {
+        "to": "Dave",
+        "value": "1",
+        "data": "0x00000000"
+      },
+      "want": "block"
+    },
+    {
+      "label": "Add Mallory as an owner, co-signed",
+      "tx": {
+        "to": "Safe",
+        "call": {
+          "fn": "addOwnerWithThreshold",
+          "args": [
+            "Mallory",
+            2
+          ]
+        },
+        "context": {
+          "type": "cosignature",
+          "signer": "CoSigner"
+        }
+      },
+      "want": "block"
+    },
+    {
+      "label": "Delegatecall an unknown contract, co-signed",
+      "tx": {
+        "to": "MysteryContract",
+        "operation": "DELEGATECALL",
+        "context": {
+          "type": "cosignature",
+          "signer": "CoSigner"
+        }
+      },
+      "want": "block"
+    }
+  ],
+  "hints": [
+    "A batch needs MultiSendPolicy on MultiSend. Each step is then checked against the catch-all, one co-signature per step.",
+    "The catch-all covers adding owners too. An exact rule with DenyPolicy shuts that one door.",
+    "For Dave, plain ETH means truly empty calldata. One policy checks that."
+  ],
+  "solution": [
+    {
+      "fallback": "CALL",
+      "policy": "CoSignerPolicy",
+      "config": {
+        "cosigner": "CoSigner"
+      }
+    },
+    {
+      "target": "MultiSend",
+      "selector": "multiSend",
+      "operation": "DELEGATECALL",
+      "policy": "MultiSendPolicy"
+    },
+    {
+      "target": "Safe",
+      "selector": "addOwnerWithThreshold",
+      "policy": "DenyPolicy"
+    },
+    {
+      "target": "Dave",
+      "selector": "none",
+      "policy": "NativeTransferPolicy"
+    }
+  ],
+  "explain": "Four rules, four jobs. The co-signer catch-all reviews anything new. MultiSendPolicy opens batches and sends each step back through the rules, so the co-signer signs steps, not the batch. DenyPolicy on adding owners wins over the catch-all, whoever co-signs. NativeTransferPolicy lets Dave receive plain ETH and nothing else. The DELEGATECALL catch-all stays empty, so unknown code never runs inside the Safe."
+}

@@ -1,0 +1,137 @@
+{
+  "id": "one-guard-is-no-guard",
+  "chapter": "modules-and-guards",
+  "order": 17,
+  "title": "Half a Guard",
+  "summary": "With only the transaction guard installed, a module ignores every rule and then removes the guard.",
+  "lesson": "The Policy Guard must be installed twice: as the transaction guard and as the module guard. With only one, any enabled module can do anything, including switching the guard off without a wait.",
+  "readme": "setup-with-safe",
+  "setup": {
+    "modules": [
+      "AllowanceModule"
+    ],
+    "guards": {
+      "transaction": true,
+      "module": false
+    },
+    "balances": {
+      "USDC": "10000"
+    },
+    "rules": [
+      {
+        "target": "USDC",
+        "selector": "transfer",
+        "policy": "ERC20TransferPolicy",
+        "config": {
+          "recipients": [
+            {
+              "account": "Dave",
+              "permission": "ALWAYS"
+            }
+          ]
+        },
+        "note": "USDC goes to Dave only"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "The owners pay Mallory 4000 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Mallory",
+            "4000"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "ERC20TransferPolicy",
+        "reason": {
+          "error": "Unauthorized"
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "The Allowance Module pays Mallory 4000 USDC",
+      "tx": {
+        "path": "module",
+        "module": "AllowanceModule",
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Mallory",
+            "4000"
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "No module guard is installed, so module transactions skip every rule.",
+      "expectState": {
+        "balances": {
+          "Mallory": {
+            "USDC": "4000"
+          }
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "The Allowance Module removes the guard",
+      "tx": {
+        "path": "module",
+        "module": "AllowanceModule",
+        "to": "Safe",
+        "call": {
+          "fn": "setGuard",
+          "args": [
+            "Zero"
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "No rule, no waiting period. The module simply switches the guard off.",
+      "expectState": {
+        "txGuard": null,
+        "moduleGuard": null
+      }
+    },
+    {
+      "do": "tx",
+      "label": "The owners pay Mallory 4000 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Mallory",
+            "4000"
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "Now nothing checks the owners either.",
+      "expectState": {
+        "balances": {
+          "Mallory": {
+            "USDC": "8000"
+          }
+        }
+      }
+    }
+  ]
+}

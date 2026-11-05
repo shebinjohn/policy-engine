@@ -1,0 +1,107 @@
+{
+  "id": "deny-beats-catch-all",
+  "chapter": "rules-and-catch-all",
+  "order": 5,
+  "title": "Deny Beats the Catch-All",
+  "summary": "A catch-all allows almost everything. DenyPolicy on one exact rule still shuts that door.",
+  "lesson": "An exact rule always wins over the catch-all. Put DenyPolicy on it to close one door, and remember that a permissive catch-all covers everything else, the Safe settings included.",
+  "readme": "policy-engine",
+  "setup": {
+    "balances": {
+      "USDC": "10000"
+    },
+    "rules": [
+      {
+        "fallback": "CALL",
+        "policy": "AllowPolicy",
+        "note": "Allows every CALL without its own rule"
+      },
+      {
+        "target": "USDC",
+        "selector": "approve",
+        "policy": "DenyPolicy",
+        "note": "No USDC approvals, ever"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "Pay Erin 200 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Erin",
+            "200"
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "USDC transfers have no rule of their own, so the catch-all allows them."
+    },
+    {
+      "do": "tx",
+      "label": "Approve Mallory to spend 1000 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "approve",
+          "args": [
+            "Mallory",
+            "1000"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "AccessDenied",
+        "policy": "DenyPolicy"
+      },
+      "note": "The exact rule is found first, so the catch-all is never asked."
+    },
+    {
+      "do": "tx",
+      "label": "Revoke Mallory's approval",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "approve",
+          "args": [
+            "Mallory",
+            "0"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "AccessDenied",
+        "policy": "DenyPolicy"
+      },
+      "note": "DenyPolicy does not read the call. Even setting an approval to zero is refused."
+    },
+    {
+      "do": "tx",
+      "label": "Add Mallory as an owner",
+      "tx": {
+        "to": "Safe",
+        "call": {
+          "fn": "addOwnerWithThreshold",
+          "args": [
+            "Mallory",
+            2
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "Careful: the catch-all also covers the Safe settings. Nothing stops two owners from adding Mallory."
+    }
+  ]
+}

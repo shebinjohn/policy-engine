@@ -1,0 +1,159 @@
+{
+  "id": "failed-batch-keeps-grant",
+  "chapter": "batches",
+  "order": 12,
+  "title": "A Failed Batch Spends Nothing",
+  "summary": "A batch uses a one-time grant and then fails. The grant comes back with everything else.",
+  "lesson": "Checks and execution succeed or fail together. If a batch fails after passing its checks, everything is undone, including a one-time grant it used.",
+  "readme": "design",
+  "setup": {
+    "balances": {
+      "USDC": "10000",
+      "SAFE": "100"
+    },
+    "rules": [
+      {
+        "target": "MultiSend",
+        "selector": "multiSend",
+        "operation": "DELEGATECALL",
+        "policy": "MultiSendPolicy",
+        "note": "Lets batches through, checking every step"
+      },
+      {
+        "target": "USDC",
+        "selector": "transfer",
+        "policy": "OneTimeAllowPolicy",
+        "config": {
+          "granted": true
+        },
+        "note": "One USDC transfer, to anyone"
+      },
+      {
+        "target": "SAFE",
+        "selector": "transfer",
+        "policy": "ERC20TransferPolicy",
+        "config": {
+          "recipients": [
+            {
+              "account": "Erin",
+              "permission": "ALWAYS"
+            }
+          ]
+        },
+        "note": "SAFE tokens to Erin"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "Pay Dave 2500 USDC and Erin 500 SAFE",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "USDC",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Dave",
+                  "2500"
+                ]
+              }
+            },
+            {
+              "to": "SAFE",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Erin",
+                  "500"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "ERC20InsufficientBalance"
+      },
+      "note": "Both steps passed their checks, and the one-time grant was used. Then the SAFE transfer failed: the Safe holds only 100 SAFE. The whole transaction is undone, the grant included."
+    },
+    {
+      "do": "tx",
+      "label": "Try again with 100 SAFE",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "USDC",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Dave",
+                  "2500"
+                ]
+              }
+            },
+            {
+              "to": "SAFE",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Erin",
+                  "100"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "The grant is still there, because the failed attempt never happened.",
+      "expectState": {
+        "balances": {
+          "Dave": {
+            "USDC": "2500"
+          },
+          "Erin": {
+            "SAFE": "100"
+          }
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Pay Dave another 2500 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Dave",
+            "2500"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "OneTimeAllowPolicy",
+        "reason": {
+          "error": "Unauthorized"
+        }
+      },
+      "note": "This time the grant was really used."
+    }
+  ]
+}

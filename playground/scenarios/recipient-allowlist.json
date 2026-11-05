@@ -1,0 +1,145 @@
+{
+  "id": "recipient-allowlist",
+  "chapter": "policies-at-work",
+  "order": 7,
+  "title": "Always or Once",
+  "summary": "A recipient allowlist pays Dave as often as needed and Erin exactly once.",
+  "lesson": "ERC20TransferPolicy keeps a list of who may receive a token. ALWAYS stays on the list. ONCE is used up by the first payment.",
+  "readme": "policies",
+  "setup": {
+    "balances": {
+      "USDC": "10000"
+    },
+    "rules": [
+      {
+        "target": "USDC",
+        "selector": "transfer",
+        "policy": "ERC20TransferPolicy",
+        "config": {
+          "recipients": [
+            {
+              "account": "Dave",
+              "permission": "ALWAYS"
+            },
+            {
+              "account": "Erin",
+              "permission": "ONCE"
+            }
+          ]
+        },
+        "note": "Dave any time, Erin once"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "Pay Dave 1000 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Dave",
+            "1000"
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Pay Dave another 1000 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Dave",
+            "1000"
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Pay Erin 500 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Erin",
+            "500"
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "Erin's permission is ONCE. This payment uses it up.",
+      "expectState": {
+        "balances": {
+          "Dave": {
+            "USDC": "2000"
+          },
+          "Erin": {
+            "USDC": "500"
+          }
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Pay Erin another 500 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Erin",
+            "500"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "ERC20TransferPolicy",
+        "reason": {
+          "error": "Unauthorized"
+        }
+      },
+      "note": "Erin is off the list now. Putting her back is a rule change, with the waiting period."
+    },
+    {
+      "do": "tx",
+      "label": "Pay Mallory 500 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Mallory",
+            "500"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "ERC20TransferPolicy",
+        "reason": {
+          "error": "Unauthorized"
+        }
+      }
+    }
+  ]
+}

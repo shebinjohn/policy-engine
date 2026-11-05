@@ -1,0 +1,189 @@
+{
+  "id": "retiring-the-guard",
+  "level": 5,
+  "title": "Retiring the Guard",
+  "brief": "The treasury is moving to a new setup, and one day the Policy Guard must come off. All three owners will sign for that, and they want to remove both guards in one batch. The Allowance Module is still enabled and must never be able to do the same.",
+  "setup": {
+    "modules": [
+      "AllowanceModule"
+    ],
+    "balances": {
+      "ETH": "5"
+    },
+    "rules": []
+  },
+  "allowedPolicies": [
+    "AllowPolicy",
+    "IncreasedThresholdPolicy",
+    "MultiSendPolicy",
+    "AllowedModulePolicy",
+    "DenyPolicy"
+  ],
+  "parRules": 3,
+  "tests": [
+    {
+      "label": "Remove both guards in one batch, all three owners signing",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "Safe",
+              "call": {
+                "fn": "setGuard",
+                "args": [
+                  "Zero"
+                ]
+              },
+              "context": {
+                "type": "ownerSignatures",
+                "signers": [
+                  "Alice",
+                  "Bob",
+                  "Carol"
+                ]
+              }
+            },
+            {
+              "to": "Safe",
+              "call": {
+                "fn": "setModuleGuard",
+                "args": [
+                  "Zero"
+                ]
+              },
+              "context": {
+                "type": "ownerSignatures",
+                "signers": [
+                  "Alice",
+                  "Bob",
+                  "Carol"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "want": "pass"
+    },
+    {
+      "label": "Remove the transaction guard, all three owners signing",
+      "tx": {
+        "to": "Safe",
+        "call": {
+          "fn": "setGuard",
+          "args": [
+            "Zero"
+          ]
+        },
+        "context": {
+          "type": "ownerSignatures",
+          "signers": [
+            "Alice",
+            "Bob",
+            "Carol"
+          ]
+        }
+      },
+      "want": "pass"
+    },
+    {
+      "label": "Remove the transaction guard with two owner signatures",
+      "tx": {
+        "to": "Safe",
+        "call": {
+          "fn": "setGuard",
+          "args": [
+            "Zero"
+          ]
+        },
+        "context": {
+          "type": "ownerSignatures",
+          "signers": [
+            "Alice",
+            "Bob"
+          ]
+        }
+      },
+      "want": "block"
+    },
+    {
+      "label": "The Allowance Module removes the transaction guard",
+      "tx": {
+        "path": "module",
+        "module": "AllowanceModule",
+        "to": "Safe",
+        "call": {
+          "fn": "setGuard",
+          "args": [
+            "Zero"
+          ]
+        }
+      },
+      "want": "block"
+    },
+    {
+      "label": "The Allowance Module removes the module guard",
+      "tx": {
+        "path": "module",
+        "module": "AllowanceModule",
+        "to": "Safe",
+        "call": {
+          "fn": "setModuleGuard",
+          "args": [
+            "Zero"
+          ]
+        }
+      },
+      "want": "block"
+    },
+    {
+      "label": "Send 1 ETH to Mallory, all three owners signing",
+      "tx": {
+        "to": "Mallory",
+        "value": "1",
+        "context": {
+          "type": "ownerSignatures",
+          "signers": [
+            "Alice",
+            "Bob",
+            "Carol"
+          ]
+        }
+      },
+      "want": "block"
+    }
+  ],
+  "hints": [
+    "AllowPolicy on removing a guard lets enabled modules do it too. You need a policy that only owners can satisfy.",
+    "The extra-signatures policy asks for more owners than the threshold, and it refuses every module transaction.",
+    "Use it on setGuard and on setModuleGuard for the Safe, and add MultiSendPolicy so both can go in one batch."
+  ],
+  "solution": [
+    {
+      "target": "MultiSend",
+      "selector": "multiSend",
+      "operation": "DELEGATECALL",
+      "policy": "MultiSendPolicy"
+    },
+    {
+      "target": "Safe",
+      "selector": "setGuard",
+      "policy": "IncreasedThresholdPolicy",
+      "config": {
+        "maxAbsent": 0
+      }
+    },
+    {
+      "target": "Safe",
+      "selector": "setModuleGuard",
+      "policy": "IncreasedThresholdPolicy",
+      "config": {
+        "maxAbsent": 0
+      }
+    }
+  ],
+  "explain": "A module carries no signatures, so a policy built on signatures refuses it outright. That makes the extra-signatures policy an owner-only lock: every owner must sign to remove a guard, and no module ever can. In a live Safe these rules arrive through the waiting period, and the removal follows in a later transaction."
+}

@@ -1,0 +1,23 @@
+{
+  "id": "fixture-challenge-vendor",
+  "level": 1,
+  "title": "Pay The Vendor",
+  "brief": "Let the Safe pay Dave in USDC, and nobody else, in any asset.",
+  "setup": {
+    "balances": { "ETH": "1", "USDC": "1000" },
+    "rules": [{ "fallback": "CALL", "policy": "AllowPolicy" }]
+  },
+  "allowedPolicies": ["AllowPolicy", "ERC20TransferPolicy", "NativeTransferPolicy"],
+  "parRules": 1,
+  "tests": [
+    { "label": "Pay Dave 100 USDC", "tx": { "to": "USDC", "call": { "fn": "transfer", "args": ["Dave", "100"] } }, "want": "pass" },
+    { "label": "Pay Mallory 100 USDC", "tx": { "to": "USDC", "call": { "fn": "transfer", "args": ["Mallory", "100"] } }, "want": "block" },
+    { "label": "Send Mallory 1 ETH", "tx": { "to": "Mallory", "value": "1" }, "want": "block" },
+    { "label": "Approve Mallory", "tx": { "to": "USDC", "call": { "fn": "approve", "args": ["Mallory", "100"] } }, "want": "block" }
+  ],
+  "hints": ["Replace the allow-everything fallback with a rule for USDC transfers."],
+  "solution": [
+    { "target": "USDC", "selector": "transfer", "policy": "ERC20TransferPolicy", "config": { "recipients": [{ "account": "Dave", "permission": "ALWAYS" }] } }
+  ],
+  "explain": "Only the exact (USDC, transfer, CALL) entry exists; everything else misses and is denied."
+}
