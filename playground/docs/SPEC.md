@@ -74,6 +74,16 @@ Safe"), and the conformance harness does the same steps on chain:
    `AccessDenied(null)` (verified by conformance). The README recommends installing both in one
    MultiSend; content that teaches installation must account for this.
 
+**Hardening in one batch** (README "Setup with Safe": "Install both guards, ideally atomically via
+MultiSend"). The recommended real-world flow is one owner transaction, a `DELEGATECALL` to
+`MultiSend` with the steps `[configureImmediately(rules), setModuleGuard(PolicyGuard),
+setGuard(PolicyGuard)]`, sent while no guard is installed. Rules for it (§9 "Batches and guard
+changes"): no guard exists when the batch starts, so nothing is checked and the order of the two
+`set*Guard` steps does not matter; but `configureImmediately` must come **before** both, because
+once either guard slot points at the PolicyGuard it reverts `GuardAlreadyEnabled`, which reverts the
+whole batch. Include a `MultiSend` rule (`MultiSendPolicy` on `multiSend`, `DELEGATECALL`) in the
+rules if the Safe should be able to batch afterwards.
+
 Setup transactions do not count: after setup the world's `nonce` is reset to 0 and `history` is
 empty, so content can reason from a clean slate. (The harness reads its real nonce after setup and
 compares deltas.)
@@ -243,6 +253,16 @@ effect; anything else follows the "no code" rule.
   with that sub-tx's revert data. As a `CALL` (verified by conformance): the sub-txs run *from the
   MultiSend contract*, not the Safe; zero-value sub-txs succeed (as calls by MultiSend), and a
   sub-tx that sends ETH reverts unless that ETH was attached to the outer call.
+- **Batches and guard changes**: the Safe reads its transaction guard **once**, before the
+  check, and calls `checkAfterExecution` on that same guard (Safe 1.5.0 `execTransaction`). So
+  inside one batch: steps are never re-checked by a guard that an earlier step installed; a batch
+  that installs the guard is unchecked if no guard existed when it started; a batch that removes the
+  guard is still checked (pre-batch, per `MultiSendPolicy`) and still gets `checkAfterExecution`
+  from the old guard. `configureImmediately` reads the guard slots **live**, so it fails with
+  `GuardAlreadyEnabled` if an earlier step of the same batch already set either guard.
+  `requestConfiguration`, `applyConfiguration` and `invalidateRoot` are allowed as batch steps
+  without a rule (§7 step 1 runs for every step), but a step checked after `applyConfiguration` in
+  the same batch is checked against the rules from before the batch (README "Guard Removal").
 - **Delegatecall** to anything other than MultiSend: runs "unknown code with full control of the
   Safe"; it succeeds and changes nothing, with a `warn` effect.
 - **People, modules, `MysteryContract`, `Zero`**: no code; any call succeeds, ETH is received.
