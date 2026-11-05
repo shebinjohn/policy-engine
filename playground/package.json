@@ -1,0 +1,27 @@
+{
+  "name": "policy-engine-playground",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "license": "LGPL-3.0-only",
+  "description": "Interactive sandbox and challenges that simulate a Safe running the Safe{Policies} Policy Engine.",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "tsx --test test/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "conformance": "cd .. && npx hardhat test --network hardhat playground/conformance/conformance.spec.ts"
+  },
+  "dependencies": {
+    "ethers": "6.13.4"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "esbuild": "0.24.2",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "tsx": "4.19.2",
+    "typescript": "5.8.3"
+  }
+}

@@ -5,7 +5,7 @@ import tseslint from 'typescript-eslint'
 
 export default [
   {
-    ignores: ['**/dist', '**/coverage', '**/typechain-types']
+    ignores: ['**/dist', '**/coverage', '**/typechain-types', 'playground/**']
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
