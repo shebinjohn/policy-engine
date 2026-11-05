@@ -153,6 +153,19 @@ function escapeInline(js) {
   return js.replace(/<\/script/gi, '<\\/script').replace(/<!--/g, '<\\!--')
 }
 
+/** Runs the bundle only when the three libraries loaded; otherwise says what went wrong. */
+function guarded(js) {
+  const message =
+    'The playground could not load its libraries from cdnjs.cloudflare.com. Check the connection and reload the page.'
+  return [
+    'if (window.React && window.ReactDOM && window.ethers) {',
+    js,
+    '} else {',
+    `  var r = document.getElementById('root'); if (r) r.innerHTML = '<p class="boot">${message}</p>';`,
+    '}'
+  ].join('\n')
+}
+
 async function main() {
   const counts = await generateContent()
   console.log(`content: ${counts.scenarios} scenarios, ${counts.challenges} challenges`)
@@ -169,7 +182,7 @@ async function main() {
     `<style>\n${css}\n</style>`,
     '<div id="root"><p class="boot">Loading the Policy Engine Playground.</p></div>',
     ...CDN.map((src) => `<script src="${src}" crossorigin="anonymous"></script>`),
-    `<script>\n${escapeInline(js)}\n</script>`,
+    `<script>\n${escapeInline(guarded(js))}\n</script>`,
     ''
   ].join('\n')
 

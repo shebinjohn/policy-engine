@@ -48,16 +48,16 @@ export function policyInfo(name: PolicyName | string | null | undefined): Policy
 }
 
 const FALLBACK_LABELS: Record<PolicyName, string> = {
-  AllowPolicy: 'Allow',
-  DenyPolicy: 'Deny',
-  OneTimeAllowPolicy: 'One-Time Allow',
+  AllowPolicy: 'Always Allow',
+  DenyPolicy: 'Always Deny',
+  OneTimeAllowPolicy: 'One-Time Pass',
   AllowedModulePolicy: 'Module Allowlist',
-  NativeTransferPolicy: 'ETH Transfer',
+  NativeTransferPolicy: 'Plain ETH Transfer',
   ERC20TransferPolicy: 'Recipient Allowlist',
   ERC20ApprovePolicy: 'Spender Allowlist',
-  MultiSendPolicy: 'Batch Check',
+  MultiSendPolicy: 'Batch Checker',
   CoSignerPolicy: 'Co-Signer',
-  IncreasedThresholdPolicy: 'Extra Signatures',
+  IncreasedThresholdPolicy: 'Extra Owner Signatures',
   SafenetPolicy: 'Safenet Attestation'
 }
 

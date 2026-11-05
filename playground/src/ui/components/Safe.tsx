@@ -31,10 +31,10 @@ export function guardState(world: World) {
 // Facts
 // ---------------------------------------------------------------------------------------------
 
-export function OwnersSection({ world }: { world: World }) {
+export function OwnersSection({ world, idPrefix = '' }: { world: World; idPrefix?: string }) {
   const owners = ownerNames(world)
   return (
-    <Section title="Owners" id="sec-owners" aside={<span className="muted small tnum">Nonce {world.safe.nonce}</span>}>
+    <Section title="Owners" id={`${idPrefix}sec-owners`} aside={<span className="muted small tnum">Nonce {world.safe.nonce}</span>}>
       <ul className="chips" aria-label="Owners">
         {owners.map((o) => (
           <li key={o} className="chip">
@@ -53,7 +53,7 @@ export function OwnersSection({ world }: { world: World }) {
   )
 }
 
-export function GuardsSection({ world }: { world: World }) {
+export function GuardsSection({ world, idPrefix = '' }: { world: World; idPrefix?: string }) {
   const g = guardState(world)
   const row = (on: boolean, name: string, what: string) => (
     <li className="guard-row">
@@ -68,7 +68,7 @@ export function GuardsSection({ world }: { world: World }) {
     </li>
   )
   return (
-    <Section title="Protection" id="sec-guards">
+    <Section title="Protection" id={`${idPrefix}sec-guards`}>
       <ul className="guard-list">
         {row(g.tx, 'Transaction guard', 'Checks owner transactions')}
         {row(g.mod, 'Module guard', 'Checks module transactions')}
@@ -92,10 +92,10 @@ export function GuardsSection({ world }: { world: World }) {
   )
 }
 
-export function ModulesSection({ world }: { world: World }) {
+export function ModulesSection({ world, idPrefix = '' }: { world: World; idPrefix?: string }) {
   const mods = moduleNames(world)
   return (
-    <Section title="Modules" id="sec-modules">
+    <Section title="Modules" id={`${idPrefix}sec-modules`}>
       {mods.length === 0 ? (
         <p className="muted small">No modules enabled.</p>
       ) : (
@@ -113,14 +113,14 @@ export function ModulesSection({ world }: { world: World }) {
   )
 }
 
-export function BalancesSection({ world }: { world: World }) {
+export function BalancesSection({ world, idPrefix = '' }: { world: World; idPrefix?: string }) {
   const rows = balanceRows(world, world.safe.address)
   const others = world.book
     .filter((e) => e.kind === 'person' || e.kind === 'module' || e.kind === 'contract' || e.kind === 'service')
     .map((e) => ({ e, rows: balanceRows(world, e.address).filter((r) => r.amount !== '0') }))
     .filter((x) => x.rows.length > 0)
   return (
-    <Section title="Balances" id="sec-balances">
+    <Section title="Balances" id={`${idPrefix}sec-balances`}>
       {rows.length === 0 ? (
         <p className="muted small">The Safe holds nothing.</p>
       ) : (

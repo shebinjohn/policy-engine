@@ -157,9 +157,9 @@ export function ScenarioView({
                 <h2 className="panel-title">The Safe</h2>
                 <span className="muted small">{isRun ? `after step ${idx + 1}` : idx === 0 ? 'at the start' : `before step ${idx + 1}`}</span>
               </div>
-              <OwnersSection world={shown} />
-              <GuardsSection world={shown} />
-              <ModulesSection world={shown} />
+              <OwnersSection world={shown} idPrefix="scn-" />
+              <GuardsSection world={shown} idPrefix="scn-" />
+              <ModulesSection world={shown} idPrefix="scn-" />
               <Section title="Rules" id="scn-rules">
                 <RuleTable world={shown} />
               </Section>
@@ -168,7 +168,7 @@ export function ScenarioView({
                   <PendingChanges world={shown} />
                 </Section>
               ) : null}
-              <BalancesSection world={shown} />
+              <BalancesSection world={shown} idPrefix="scn-" />
               <Section title="Clock" id="scn-clock">
                 <Clock world={shown} />
               </Section>

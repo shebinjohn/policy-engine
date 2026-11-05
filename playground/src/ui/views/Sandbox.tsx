@@ -76,6 +76,19 @@ function boot(preset: Preset): State {
 
 type Tab = 'safe' | 'build' | 'result'
 
+/** After a run, bring the verdict into view if it is above the fold or behind a tab. */
+function revealResult() {
+  requestAnimationFrame(() => {
+    const el = document.getElementById('panel-result')
+    if (!el) return
+    const top = el.getBoundingClientRect().top
+    if (top < 60 || top > window.innerHeight * 0.6) {
+      const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+      el.scrollIntoView({ block: 'start', behavior: reduce ? 'auto' : 'smooth' })
+    }
+  })
+}
+
 /** A starting point handed over from a scenario step: its world and transaction. */
 export interface Seed {
   id: number
@@ -122,6 +135,7 @@ export function Sandbox({ seed }: { seed?: Seed | null }) {
       ...(after ? after(result) : {})
     }))
     setTab('result')
+    revealResult()
   }
 
   const managementTx = (fn: string, configurations: RuleSpec[], label: string): TxSpec => ({
@@ -298,14 +312,18 @@ export function Sandbox({ seed }: { seed?: Seed | null }) {
     <div className="sandbox">
       <div className="intro-strip">
         {state.example ? (
-          <p>
-            <strong>Example Safe.</strong> A hardened treasury with five rules. The transaction on the right already ran. Change anything and run it
-            again, or reset the Safe to another starting point.
-          </p>
+          <>
+            <Pill tone="info">Example</Pill>
+            <p>
+              A hardened treasury with five rules. Its first transaction already ran: see why it was blocked. Change anything and run it again, or
+              reset the Safe to another starting point.
+            </p>
+          </>
         ) : (
-          <p>
-            <strong>{state.preset.label}.</strong> {state.preset.blurb}
-          </p>
+          <>
+            <Pill tone="neutral">{state.preset.label}</Pill>
+            <p>{state.preset.blurb}</p>
+          </>
         )}
       </div>
       <div className="sandbox-tabs">

@@ -215,10 +215,10 @@ export function ChallengeView({
             <div className="panel-head">
               <h2 className="panel-title">The Safe</h2>
             </div>
-            <OwnersSection world={base} />
-            <GuardsSection world={base} />
-            <ModulesSection world={base} />
-            <BalancesSection world={base} />
+            <OwnersSection world={base} idPrefix="chl-" />
+            <GuardsSection world={base} idPrefix="chl-" />
+            <ModulesSection world={base} idPrefix="chl-" />
+            <BalancesSection world={base} idPrefix="chl-" />
           </div>
         </div>
 
