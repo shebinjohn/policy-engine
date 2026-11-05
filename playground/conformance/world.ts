@@ -230,7 +230,11 @@ export function keyOf(world: World, name: string): any {
 
 /** Base-unit amount from a human amount of the asset with `decimals`. */
 export function toUnits(human: string | number, decimals: number): bigint {
-  return ethers.parseUnits(String(human), decimals)
+  const text = String(human).trim()
+  // The engine reads "max" / "unlimited" as type(uint256).max (book.ts parseAmount), e.g. an
+  // unlimited approval; the harness must encode the same word.
+  if (text === 'max' || text === 'unlimited') return ethers.MaxUint256
+  return ethers.parseUnits(text, decimals)
 }
 
 export function fromUnits(units: bigint, decimals: number): string {
