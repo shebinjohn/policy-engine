@@ -12,7 +12,8 @@ export function Answer({
   compact = false,
   animate = false,
   id,
-  reason
+  reason,
+  showRule = true
 }: {
   result: SimResult
   tx: TxSpec
@@ -24,6 +25,8 @@ export function Answer({
   id: string
   /** An authored sentence to show instead of the generated one. */
   reason?: string
+  /** "Rule used": off where a lit rulebook already sits beside the answer. */
+  showRule?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const lit = litOf(result, tx)
@@ -36,23 +39,43 @@ export function Answer({
       </div>
       {compact ? null : (
         <>
-          <div className="answer-rule">
-            <p className="answer-label">Rule used</p>
-            {used ? (
-              <Rulebook world={world} lit={lit} only id={`${id}-rule`} />
-            ) : (
-              <p className="muted">{result.trace.some((e) => e.depth === 0 && e.id === 'safe.noGuard') ? 'None. No guard checked it.' : 'None. It was stopped before the rulebook.'}</p>
-            )}
-          </div>
+          {showRule ? (
+            <div className="answer-rule">
+              <p className="answer-label">Rule used</p>
+              {used ? (
+                <Rulebook world={world} lit={lit} only id={`${id}-rule`} />
+              ) : (
+                <p className="muted">
+                  {result.trace.some((e) => e.depth === 0 && e.id === 'safe.noGuard')
+                    ? 'None. No guard checked it.'
+                    : 'None. It was stopped before the rulebook.'}
+                </p>
+              )}
+            </div>
+          ) : null}
           <MiniPath result={result} world={world} animate={animate} />
           <div>
-            <button type="button" className="link-button" id={`${id}-steps`} aria-expanded={open} onClick={() => setOpen(!open)}>
+            <button
+              type="button"
+              className="link-button"
+              id={`${id}-steps`}
+              aria-expanded={open}
+              onClick={() => setOpen(!open)}
+            >
               {open ? 'Hide every step' : 'Show every step'}
             </button>
           </div>
           {open ? (
             <div className="answer-steps">
-              <ResultView result={result} tx={tx} world={world} showSummary={false} edges={false} showVerdict={false} headingLevel={4} />
+              <ResultView
+                result={result}
+                tx={tx}
+                world={world}
+                showSummary={false}
+                edges={false}
+                showVerdict={false}
+                headingLevel={4}
+              />
             </div>
           ) : null}
         </>

@@ -34,7 +34,15 @@ const CONTRACTS: Option[] = [
 const ACTIONS: Record<string, string[]> = {
   token: ['transfer', 'approve', 'transferFrom'],
   weth: ['transfer', 'approve', 'transferFrom', 'deposit', 'withdraw', 'none'],
-  safe: ['addOwnerWithThreshold', 'removeOwner', 'changeThreshold', 'enableModule', 'disableModule', 'setGuard', 'setModuleGuard'],
+  safe: [
+    'addOwnerWithThreshold',
+    'removeOwner',
+    'changeThreshold',
+    'enableModule',
+    'disableModule',
+    'setGuard',
+    'setModuleGuard'
+  ],
   multisend: ['multiSend'],
   person: ['none'],
   contract: ['none']
@@ -48,7 +56,14 @@ function actionsFor(world: World, contract: string): string[] {
 const actionLabel = (a: string) => (a === 'none' ? 'Send ETH' : (ACTION_WORDS[a] ?? a))
 
 function hasSettings(p: PolicyName): boolean {
-  return ['ERC20TransferPolicy', 'ERC20ApprovePolicy', 'CoSignerPolicy', 'IncreasedThresholdPolicy', 'AllowedModulePolicy', 'OneTimeAllowPolicy'].includes(p)
+  return [
+    'ERC20TransferPolicy',
+    'ERC20ApprovePolicy',
+    'CoSignerPolicy',
+    'IncreasedThresholdPolicy',
+    'AllowedModulePolicy',
+    'OneTimeAllowPolicy'
+  ].includes(p)
 }
 
 export function RowEditor({
@@ -77,7 +92,9 @@ export function RowEditor({
   const [op, setOp] = useState<OperationName>(initial?.fallback ?? initial?.operation ?? 'CALL')
   const initPolicy = (initial?.policy && policies.includes(initial.policy) ? initial.policy : policies[0]) as PolicyName
   const [policy, setPolicy] = useState<PolicyName>(initPolicy)
-  const [config, setConfig] = useState<Record<string, unknown>>((initial?.config as Record<string, unknown>) ?? defaultConfig(world, initPolicy))
+  const [config, setConfig] = useState<Record<string, unknown>>(
+    (initial?.config as Record<string, unknown>) ?? defaultConfig(world, initPolicy)
+  )
 
   const actions = actionsFor(world, contract)
   const act = actions.includes(action) ? action : (actions[0] ?? 'none')
@@ -112,10 +129,22 @@ export function RowEditor({
         {isElse ? (
           <span className="muted">does anything without its own rule</span>
         ) : (
-          <Select id={`${idPrefix}-action`} ariaLabel="Action" value={act} onChange={setAction} options={actions.map((a) => ({ value: a, label: actionLabel(a).toLowerCase() }))} />
+          <Select
+            id={`${idPrefix}-action`}
+            ariaLabel="Action"
+            value={act}
+            onChange={setAction}
+            options={actions.map((a) => ({ value: a, label: actionLabel(a).toLowerCase() }))}
+          />
         )}
         {isElse ? null : <span>{entity(world, contract).kind === 'person' ? 'to' : 'on'}</span>}
-        <Select id={`${idPrefix}-contract`} ariaLabel="Contract" value={contract} onChange={changeContract} options={CONTRACTS} />
+        <Select
+          id={`${idPrefix}-contract`}
+          ariaLabel="Contract"
+          value={contract}
+          onChange={changeContract}
+          options={CONTRACTS}
+        />
       </p>
       <div className="row-line">
         <span className="row-label">Call type</span>
@@ -145,7 +174,9 @@ export function RowEditor({
         />
       </div>
       {policyInfo(policy)?.oneLiner ? <p className="muted small">{policyInfo(policy)?.oneLiner}</p> : null}
-      {hasSettings(policy) ? <PolicyConfigForm id={`${idPrefix}-cfg`} world={world} policy={policy} config={config} onChange={setConfig} /> : null}
+      {hasSettings(policy) ? (
+        <PolicyConfigForm id={`${idPrefix}-cfg`} world={world} policy={policy} config={config} onChange={setConfig} />
+      ) : null}
       {problem ? (
         <Callout tone="warning" title="The Policy Guard would refuse this rule">
           {setupSentence(world, null, problem, policy, isElse)}

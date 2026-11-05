@@ -8,7 +8,17 @@
  * back to a safe sentence by who stopped it. Never: nonce, selector, calldata, gas, hex, signature,
  * Solidity names or GS codes.
  */
-import type { ContextSpec, PolicyName, RuleSpec, SimError, SimResult, SubTxSpec, TraceEvent, TxSpec, World } from '../../engine/types.ts'
+import type {
+  ContextSpec,
+  PolicyName,
+  RuleSpec,
+  SimError,
+  SimResult,
+  SubTxSpec,
+  TraceEvent,
+  TxSpec,
+  World
+} from '../../engine/types.ts'
 import { engine } from '../sources.ts'
 import { ALL_POLICIES, policyLabel } from './content.ts'
 import { decodeConfig, defaultSigners, entity, isZero, nameOf, ownerNames } from './describe.ts'
@@ -101,7 +111,14 @@ function safeReason(world: World, c: Call, err: SimError): string {
   }
 }
 
-function policyReason(world: World, c: Call, policy: PolicyName | null | undefined, err: SimError, trace: TraceEvent[], subTx: number | undefined): string {
+function policyReason(
+  world: World,
+  c: Call,
+  policy: PolicyName | null | undefined,
+  err: SimError,
+  trace: TraceEvent[],
+  subTx: number | undefined
+): string {
   const label = policyLabel(policy)
   const ctx = contextOf(c)
   switch (err.error) {
@@ -116,8 +133,10 @@ function policyReason(world: World, c: Call, policy: PolicyName | null | undefin
         case 'OneTimeAllowPolicy':
           return 'The one-time pass for this is used up, or was never given.'
         case 'CoSignerPolicy':
-          if (ctx?.type === 'cosignature' && ctx.over === 'batch') return 'The co-signer signed the whole batch, not this step. Each step needs its own.'
-          if (ctx?.type === 'cosignature') return `${nameOf(world, ctx.signer)} signed, but this rule wants the co-signer.`
+          if (ctx?.type === 'cosignature' && ctx.over === 'batch')
+            return 'The co-signer signed the whole batch, not this step. Each step needs its own.'
+          if (ctx?.type === 'cosignature')
+            return `${nameOf(world, ctx.signer)} signed, but this rule wants the co-signer.`
           return 'The co-signer has not signed this.'
         default:
           return `${label} did not allow this.`
@@ -134,19 +153,26 @@ function policyReason(world: World, c: Call, policy: PolicyName | null | undefin
       const outsider = extra.find((s) => !ownerNames(world).includes(s))
       if (outsider) return `${nameOf(world, outsider)} is not an owner, so that approval does not count.`
       if (required === null) return 'This rule needs more owners to sign than usual.'
-      if (extra.length === 0) return `This rule needs ${required} owners to sign, more than the usual ${world.safe.threshold}.`
+      if (extra.length === 0)
+        return `This rule needs ${required} owners to sign, more than the usual ${world.safe.threshold}.`
       return `This rule needs ${required} owners to sign, and only ${extra.length} did.`
     }
     case 'InvalidModule':
-      return policy === 'AllowedModulePolicy' ? 'Only a listed module may do this, not the owners.' : 'That is not a module this rule can list.'
+      return policy === 'AllowedModulePolicy'
+        ? 'Only a listed module may do this, not the owners.'
+        : 'That is not a module this rule can list.'
     case 'UnauthorizedModule':
       return `The ${nameOf(world, (c as TxSpec).module ?? '')} is not on the module list.`
     case 'InvalidOperation':
-      return policy === 'NativeTransferPolicy' ? 'Plain ETH has to go as a normal call.' : `${label} only works with normal calls.`
+      return policy === 'NativeTransferPolicy'
+        ? 'Plain ETH has to go as a normal call.'
+        : `${label} only works with normal calls.`
     case 'CalldataNotPermitted':
       return 'This rule only allows plain ETH, and this call carries extra instructions.'
     case 'InvalidTransfer':
-      return policy === 'NativeTransferPolicy' ? 'This rule only allows sending ETH, and this sends none.' : `${label} only checks token payments.`
+      return policy === 'NativeTransferPolicy'
+        ? 'This rule only allows sending ETH, and this sends none.'
+        : `${label} only checks token payments.`
     case 'InvalidApproval':
       return `${label} only checks approvals.`
     case 'InvalidMultiSend':
@@ -161,7 +187,13 @@ function policyReason(world: World, c: Call, policy: PolicyName | null | undefin
       return 'The owners’ extra approval for this exact transaction was already used. It works once.'
     case 'ModulePathUnsupported': {
       const what =
-        policy === 'CoSignerPolicy' ? 'the co-signer to sign' : policy === 'IncreasedThresholdPolicy' ? 'all owners to sign' : policy === 'SafenetPolicy' ? 'Safenet to approve' : 'the owners'
+        policy === 'CoSignerPolicy'
+          ? 'the co-signer to sign'
+          : policy === 'IncreasedThresholdPolicy'
+            ? 'all owners to sign'
+            : policy === 'SafenetPolicy'
+              ? 'Safenet to approve'
+              : 'the owners'
       return `A module cannot get ${what}, so the ${label} rule blocks it.`
     }
     case 'MalformedAttestation':
@@ -187,7 +219,9 @@ function failure(world: World, c: Call, err: SimError, result: SimResult, subTx?
 
   // A batch step that failed while running: blame the step, not the batch.
   if (err.by === 'execution' && (c as TxSpec).call?.fn === 'multiSend' && subTx === undefined) {
-    const ev = result.trace.find((e) => e.depth >= 1 && e.status === 'fail' && e.subTx !== undefined && e.id.startsWith('exec'))
+    const ev = result.trace.find(
+      (e) => e.depth >= 1 && e.status === 'fail' && e.subTx !== undefined && e.id.startsWith('exec')
+    )
     const inner = ev ? (c as TxSpec).call?.batch?.[ev.subTx!] : undefined
     if (inner) return `In step ${ev!.subTx! + 1} of the batch: ${uncap(failure(world, inner, err, result, ev!.subTx))}`
   }
@@ -201,8 +235,17 @@ function failure(world: World, c: Call, err: SimError, result: SimResult, subTx?
       if (inner) return `In step ${step! + 1} of the batch: ${uncap(failure(world, inner, reason, result, step))}`
       return 'One step of the batch was not allowed.'
     }
-    if (reason) return policyReason(world, c, err.policy, reason, result.trace, subTx)
-    return `${policyLabel(err.policy)} did not allow this.`
+    const inner = reason
+      ? policyReason(world, c, err.policy, reason, result.trace, subTx)
+      : `${policyLabel(err.policy)} did not allow this.`
+    // Reached through "Anything else": say so first, so people see why this policy was asked.
+    const viaElse = result.trace.some(
+      (e) =>
+        e.id === 'engine.lookup.fallback' &&
+        e.status === 'pass' &&
+        (subTx === undefined ? e.depth === 0 : e.subTx === subTx)
+    )
+    return viaElse ? `No rule names ${gerund(world, c)}, so the Anything else rule decides. ${inner}` : inner
   }
 
   const what = gerund(world, c)
@@ -254,20 +297,26 @@ function failure(world: World, c: Call, err: SimError, result: SimResult, subTx?
     case 'Reverted':
     case 'Panic':
     case 'OutOfGas':
-      if (c.value && Number(c.value) > 0 && enoughEth(world, c.value) === false) return 'The Safe does not have enough ETH.'
+      if (c.value && Number(c.value) > 0 && enoughEth(world, c.value) === false)
+        return 'The Safe does not have enough ETH.'
       return 'The transaction itself failed, so nothing changed.'
     default:
       if (/^GS\d{3}$/.test(err.error)) return safeReason(world, c, err)
-      return err.by === 'execution' ? 'The transaction itself failed, so nothing changed.' : 'The Policy Guard blocked this transaction.'
+      return err.by === 'execution'
+        ? 'The transaction itself failed, so nothing changed.'
+        : 'The Policy Guard blocked this transaction.'
   }
 }
 
-const COMMON_START = /^(The|A|An|In|No|Nothing|Only|This|That|These|Rules|Tokens|At|Plain|Step|Every|Enough|Taking|Changing|It|One|Each)\b/
+const COMMON_START =
+  /^(The|A|An|In|No|Nothing|Only|This|That|These|Rules|Tokens|At|Plain|Step|Every|Enough|Taking|Changing|It|One|Each)\b/
 /** Lower-cases a sentence's first word when it is a common word, not a name. */
 const uncap = (s: string) => (s && COMMON_START.test(s) ? s.charAt(0).toLowerCase() + s.slice(1) : s)
 
 function enoughEth(world: World, human: string): boolean | null {
-  const bal = world.balances.ETH?.[world.safe.address] ?? Object.entries(world.balances.ETH ?? {}).find(([h]) => h.toLowerCase() === world.safe.address.toLowerCase())?.[1]
+  const bal =
+    world.balances.ETH?.[world.safe.address] ??
+    Object.entries(world.balances.ETH ?? {}).find(([h]) => h.toLowerCase() === world.safe.address.toLowerCase())?.[1]
   if (bal === undefined) return false
   try {
     const [w, f = ''] = human.split('.')
@@ -279,7 +328,13 @@ function enoughEth(world: World, human: string): boolean | null {
 }
 
 /** Why a rule could not be set up, in plain words. */
-export function setupSentence(world: World, c: Call | null, err: SimError, rulePolicy?: PolicyName | null, isElse?: boolean): string {
+export function setupSentence(
+  world: World,
+  c: Call | null,
+  err: SimError,
+  rulePolicy?: PolicyName | null,
+  isElse?: boolean
+): string {
   const policy = rulePolicy ?? err.policy ?? null
   const label = policyLabel(policy)
   const configs = c?.call?.configurations ?? []
@@ -303,7 +358,9 @@ export function simpleReason(result: SimResult, tx: TxSpec, world: World): strin
       // A refused rule setup surfaces as the policy's own error inside a rulebook change.
       const refused = result.trace.find((e) => e.id === 'exec.configure' && e.status === 'fail')
       if (refused && err.by === 'execution') {
-        const bad = (tx.call?.configurations ?? (tx.call?.batch ?? []).flatMap((s) => s.call?.configurations ?? [])).find((r) => r.policy && refusedAlone(r))
+        const bad = (
+          tx.call?.configurations ?? (tx.call?.batch ?? []).flatMap((s) => s.call?.configurations ?? [])
+        ).find((r) => r.policy && refusedAlone(r))
         return setupSentence(world, tx, err, bad?.policy, Boolean(bad?.fallback))
       }
       return failure(world, tx, err, result)
@@ -327,18 +384,21 @@ function refusedAlone(rule: RuleSpec): boolean {
 function allowed(result: SimResult, tx: TxSpec, world: World): string {
   const trace = result.trace
   if (trace.some((e) => e.depth === 0 && e.id === 'safe.noGuard')) {
-    return tx.path === 'module' ? 'The guard is not checking modules here, so nothing checked this.' : 'No Policy Guard is installed, so nothing checked this.'
+    return tx.path === 'module'
+      ? 'The guard is not checking modules here, so nothing checked this.'
+      : 'No Policy Guard is installed, so nothing checked this.'
   }
-  if (trace.some((e) => e.depth === 0 && e.id === 'engine.allowedCall')) return 'Changing the rulebook is always allowed. The change waits before it applies.'
+  if (trace.some((e) => e.depth === 0 && e.id === 'engine.allowedCall'))
+    return 'Changing the rulebook is always allowed. The change waits before it applies.'
   const m = result.matched
   if (!m) return 'The rulebook allows this.'
   const viaElse = m.isFallback
-  const lead = viaElse ? 'No rule names this, so the Anything else rule decides: ' : ''
+  const lead = viaElse ? `No rule names ${gerund(world, tx)}, so the Anything else rule decides. ` : ''
   const spentOnce = result.effects.some((e) => e.kind === 'policyState' && !e.reverted)
   let s: string
   switch (m.policy) {
     case 'AllowPolicy':
-      s = viaElse ? 'it allows everything.' : `The rule for ${gerund(world, tx)} is Always Allow.`
+      s = viaElse ? 'It allows everything.' : `The rule for ${gerund(world, tx)} is Always Allow.`
       break
     case 'ERC20TransferPolicy': {
       const to = tx.call?.fn === 'transferFrom' ? arg(tx, 1) : arg(tx, 0)
@@ -348,7 +408,10 @@ function allowed(result: SimResult, tx: TxSpec, world: World): string {
       break
     }
     case 'ERC20ApprovePolicy':
-      s = Number(arg(tx, 1) || 0) === 0 ? 'Taking back an approval is always allowed.' : `${nameOf(world, arg(tx, 0))} is on the list of who may spend ${symbolOf(world, tx.to)}.`
+      s =
+        Number(arg(tx, 1) || 0) === 0
+          ? 'Taking back an approval is always allowed.'
+          : `${nameOf(world, arg(tx, 0))} is on the list of who may spend ${symbolOf(world, tx.to)}.`
       break
     case 'NativeTransferPolicy':
       s = `Plain ETH to ${nameOf(world, tx.to)} is allowed.`
@@ -363,8 +426,7 @@ function allowed(result: SimResult, tx: TxSpec, world: World): string {
       s = 'Every step of the batch passed its own rule.'
       break
     case 'CoSignerPolicy':
-      s = 'the co-signer signed it.'
-      if (!viaElse) s = 'The co-signer signed this.'
+      s = 'The co-signer signed this.'
       break
     case 'IncreasedThresholdPolicy': {
       const ctx = tx.context
@@ -378,16 +440,17 @@ function allowed(result: SimResult, tx: TxSpec, world: World): string {
     default:
       s = 'The rulebook allows this.'
   }
-  return viaElse ? lead + uncap(s) : cap(s)
+  return lead + cap(s)
 }
 
 /** Words that must never appear on the simple layer (SIMPLE_LAYER.md §5). */
 export const FORBIDDEN_WORDS = /\b(nonce|selectors?|calldata|gas|hex|signatures?|revert(ed|s)?|access selector)\b/i
 /** Code identifiers: GS codes, hex, Solidity names. Case-sensitive. */
-export const FORBIDDEN_CODE = /\b(GS\d{3}|0x[0-9a-fA-F]{4,}|[A-Z][A-Za-z0-9]*Policy|ERC20[A-Z][A-Za-z]+|PolicyReverted|AccessDenied|DELEGATECALL|CALL)\b/
+export const FORBIDDEN_CODE =
+  /\b(GS\d{3}|0x[0-9a-fA-F]{4,}|[A-Z][A-Za-z0-9]*Policy|ERC20[A-Z][A-Za-z]+|PolicyReverted|AccessDenied|DELEGATECALL|CALL)\b/
 
 export function jargonIn(text: string): string | null {
-  // Policy labels from src/content/policies.ts are allowed words, even "Extra Owner Signatures".
+  // Policy labels from src/content/policies.ts are allowed words, even ones such as "More Owners Sign".
   let t = text
   for (const p of ALL_POLICIES) t = t.split(policyLabel(p)).join('')
   const m = FORBIDDEN_WORDS.exec(t) ?? FORBIDDEN_CODE.exec(t)

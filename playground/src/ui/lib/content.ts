@@ -59,7 +59,7 @@ const FALLBACK_LABELS: Record<PolicyName, string> = {
   ERC20ApprovePolicy: 'Spender Allowlist',
   MultiSendPolicy: 'Batch Checker',
   CoSignerPolicy: 'Co-Signer',
-  IncreasedThresholdPolicy: 'Extra Owner Signatures',
+  IncreasedThresholdPolicy: 'More Owners Sign',
   SafenetPolicy: 'Safenet Attestation'
 }
 

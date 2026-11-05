@@ -17,7 +17,11 @@ export interface RulebookPreset {
 }
 
 export const RULEBOOKS: RulebookPreset[] = [
-  { id: 'treasury', label: 'Treasury example', rules: (PRESETS.find((p) => p.id === 'example')?.setup.rules ?? []).map(({ note: _n, ...r }) => r) },
+  {
+    id: 'treasury',
+    label: 'Treasury example',
+    rules: (PRESETS.find((p) => p.id === 'example')?.setup.rules ?? []).map(({ note: _n, ...r }) => r)
+  },
   { id: 'nothing', label: 'Nothing allowed', rules: [] },
   {
     id: 'everything',
@@ -27,7 +31,11 @@ export const RULEBOOKS: RulebookPreset[] = [
       { fallback: 'DELEGATECALL', policy: 'AllowPolicy' }
     ]
   },
-  { id: 'cosigner', label: 'Co-signer for anything else', rules: [{ fallback: 'CALL', policy: 'CoSignerPolicy', config: { cosigner: 'CoSigner' } }] }
+  {
+    id: 'cosigner',
+    label: 'Co-signer for anything else',
+    rules: [{ fallback: 'CALL', policy: 'CoSignerPolicy', config: { cosigner: 'CoSigner' } }]
+  }
 ]
 
 /** A fresh guarded Safe with these rules, or the reason it cannot be set up. */

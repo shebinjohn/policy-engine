@@ -4,18 +4,16 @@
  */
 import type { CallSpec, OperationName, SubTxSpec, TableEntry, TxSpec, World } from '../../engine/types.ts'
 import { IDEAS } from '../generated/content.ts'
-import { STUB_IDEAS } from '../dev/stubIdeas.ts'
 import { policyLabel } from './content.ts'
 import { describeTableEntry, entity, fnBySelector, isZero, nameOf, ZERO_SELECTOR } from './describe.ts'
 import { formatHuman } from './format.ts'
 
 // ---------------------------------------------------------------------------------------------
-// Ideas (falls back to the dev stub until ideas/*.json lands)
+// Ideas: order 0 is the home explainer, 1 to 8 the big ideas
 // ---------------------------------------------------------------------------------------------
 
-const ALL_IDEAS = IDEAS.length > 0 ? IDEAS : STUB_IDEAS
-export const EXPLAINER = ALL_IDEAS.find((i) => i.order === 0) ?? null
-export const BIG_IDEAS = ALL_IDEAS.filter((i) => i.order >= 1).sort((a, b) => a.order - b.order)
+export const EXPLAINER = IDEAS.find((i) => i.order === 0) ?? null
+export const BIG_IDEAS = IDEAS.filter((i) => i.order >= 1).sort((a, b) => a.order - b.order)
 
 // ---------------------------------------------------------------------------------------------
 // Contracts, actions, call types
@@ -79,6 +77,8 @@ export interface SimpleRow {
   settings: string
   /** A placeholder "Anything else" row with no rule: blocked. */
   empty?: boolean
+  /** A batch row: its call type is part of what a batch is, so it is not worth showing. */
+  isBatch?: boolean
   entry?: TableEntry
 }
 
@@ -86,7 +86,10 @@ const FALLBACK_CALL = '0x' + '0'.repeat(64)
 const FALLBACK_DELEGATE = '0x0000000001' + '0'.repeat(54)
 
 /** The rulebook as rows: specific rules first, then the "Anything else" rows. */
-export function rulebookRows(world: World, opts: { showDelegate?: boolean } = {}): { rules: SimpleRow[]; anythingElse: SimpleRow[] } {
+export function rulebookRows(
+  world: World,
+  opts: { showDelegate?: boolean } = {}
+): { rules: SimpleRow[]; anythingElse: SimpleRow[] } {
   const entries = Object.values(world.table)
   const rules: SimpleRow[] = entries
     .filter((e) => !e.isFallback)
@@ -101,7 +104,8 @@ export function rulebookRows(world: World, opts: { showDelegate?: boolean } = {}
         callType: callTypeWord(e.operation),
         policy: w.policy,
         settings: w.config,
-        entry: e
+        entry: e,
+        isBatch: entity(world, e.target).kind === 'multisend'
       }
     })
     .sort((a, b) => a.contract.localeCompare(b.contract) || a.action.localeCompare(b.action))
@@ -140,6 +144,11 @@ function sym(world: World, token: string): string {
 
 /** "sending USDC to Mallory", "adding Dave as an owner", "running unknown code". */
 export function gerund(world: World, c: CallLike): string {
+  const base = gerundOf(world, c)
+  return c.operation === 'DELEGATECALL' && c.call && c.call.fn !== 'multiSend' ? `${base} as a delegatecall` : base
+}
+
+function gerundOf(world: World, c: CallLike): string {
   const a = c.call?.args ?? []
   const who = (x: unknown) => nameOf(world, String(x ?? ''))
   if (c.call) {
@@ -147,7 +156,9 @@ export function gerund(world: World, c: CallLike): string {
       case 'transfer':
         return `sending ${sym(world, c.to)} to ${who(a[0])}`
       case 'approve':
-        return Number(a[1] ?? 0) === 0 ? `taking back ${who(a[0])}'s ${sym(world, c.to)} approval` : `letting ${who(a[0])} spend ${sym(world, c.to)}`
+        return Number(a[1] ?? 0) === 0
+          ? `taking back ${who(a[0])}'s ${sym(world, c.to)} approval`
+          : `letting ${who(a[0])} spend ${sym(world, c.to)}`
       case 'transferFrom':
         return `pulling ${sym(world, c.to)} from ${who(a[0])}`
       case 'deposit':
@@ -175,10 +186,13 @@ export function gerund(world: World, c: CallLike): string {
     }
   }
   const target = entity(world, c.to)
-  if (c.operation === 'DELEGATECALL') return target.kind === 'contract' ? 'running unknown code' : `running ${nameOf(world, c.to)}'s code inside the Safe`
+  if (c.operation === 'DELEGATECALL')
+    return target.kind === 'contract' ? 'running unknown code' : `running ${nameOf(world, c.to)}'s code inside the Safe`
   if (target.kind === 'weth' && c.value && Number(c.value) > 0) return 'wrapping ETH'
   if (c.data && c.data !== '0x') return `this call to ${nameOf(world, c.to)}`
-  return c.value && Number(c.value) > 0 ? `sending ETH to ${nameOf(world, c.to)}` : `an empty call to ${nameOf(world, c.to)}`
+  return c.value && Number(c.value) > 0
+    ? `sending ETH to ${nameOf(world, c.to)}`
+    : `an empty call to ${nameOf(world, c.to)}`
 }
 
 /** "Pay Mallory 500 USDC": the sentence for a transaction card when no label is given. */
@@ -190,7 +204,9 @@ export function txSentence(world: World, c: CallLike): string {
       case 'transfer':
         return `Send ${formatHuman(String(a[1] ?? '0'))} ${sym(world, c.to)} to ${who(a[0])}`
       case 'approve':
-        return Number(a[1] ?? 0) === 0 ? `Take back ${who(a[0])}'s ${sym(world, c.to)} approval` : `Let ${who(a[0])} spend ${formatHuman(String(a[1] ?? '0'))} ${sym(world, c.to)}`
+        return Number(a[1] ?? 0) === 0
+          ? `Take back ${who(a[0])}'s ${sym(world, c.to)} approval`
+          : `Let ${who(a[0])} spend ${formatHuman(String(a[1] ?? '0'))} ${sym(world, c.to)}`
       case 'deposit':
         return `Wrap ${formatHuman(c.value || '0')} ETH`
       case 'multiSend':
@@ -203,7 +219,9 @@ export function txSentence(world: World, c: CallLike): string {
   }
   if (c.operation === 'DELEGATECALL') return 'Run unknown code'
   if (entity(world, c.to).kind === 'weth' && c.value && Number(c.value) > 0) return `Wrap ${formatHuman(c.value)} ETH`
-  return c.value && Number(c.value) > 0 ? `Send ${formatHuman(c.value)} ETH to ${nameOf(world, c.to)}` : `Empty call to ${nameOf(world, c.to)}`
+  return c.value && Number(c.value) > 0
+    ? `Send ${formatHuman(c.value)} ETH to ${nameOf(world, c.to)}`
+    : `Empty call to ${nameOf(world, c.to)}`
 }
 
 /** "Owners sign", "All owners sign, co-signed", "Allowance Module". */

@@ -8,7 +8,17 @@ import path from 'node:path'
 import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-import { engine, type BigIdea, type Challenge, type ErrorSource, type PolicyName, type Scenario, type SimResult, type TxSpec, type World } from '../src/engine/index.ts'
+import {
+  engine,
+  type BigIdea,
+  type Challenge,
+  type ErrorSource,
+  type PolicyName,
+  type Scenario,
+  type SimResult,
+  type TxSpec,
+  type World
+} from '../src/engine/index.ts'
 import { ERRORS } from '../src/content/index.ts'
 import { jargonIn, simpleReason } from '../src/ui/lib/simpleReason.ts'
 
@@ -55,7 +65,9 @@ describe('simple reasons', () => {
       for (const rules of [c.setup.rules ?? [], c.solution]) {
         const world = engine.createWorld({ ...c.setup, rules })
         const report = engine.runChallenge(c, rules)
-        report.results.forEach((r, i) => check(simpleReason(r.result, r.test.tx, world), `challenge ${c.id} test ${i + 1}`))
+        report.results.forEach((r, i) =>
+          check(simpleReason(r.result, r.test.tx, world), `challenge ${c.id} test ${i + 1}`)
+        )
       }
     }
   })
@@ -67,9 +79,20 @@ describe('simple reasons', () => {
     for (const key of Object.keys(ERRORS)) {
       const [maybePolicy, maybeName] = key.includes('.') ? key.split('.') : [undefined, key]
       const name = maybeName ?? key
-      const by: ErrorSource = /^GS/.test(name) && !maybePolicy ? 'safe' : /^ERC20|Reverted|CallFailed|ExecutionFailed/.test(name) ? 'execution' : 'guard'
+      const by: ErrorSource =
+        /^GS/.test(name) && !maybePolicy
+          ? 'safe'
+          : /^ERC20|Reverted|CallFailed|ExecutionFailed/.test(name)
+            ? 'execution'
+            : 'guard'
       const error = maybePolicy
-        ? { by, error: 'PolicyReverted', policy: maybePolicy as PolicyName, reason: { by, error: name, message: '' }, message: '' }
+        ? {
+            by,
+            error: 'PolicyReverted',
+            policy: maybePolicy as PolicyName,
+            reason: { by, error: name, message: '' },
+            message: ''
+          }
         : { by, error: name, policy: null, message: '' }
       const result: SimResult = { ...base, ok: false, error, matched: null }
       check(simpleReason(result, tx, world), `error ${key}`)
