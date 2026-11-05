@@ -313,6 +313,21 @@ export interface Scenario {
   engine?: boolean | string // false or a reason string = skip the engine replay (the chain outcome depends on something the engine does not model); default true
 }
 
+/**
+ * A big idea: one short lesson on the simple layer, for non-developers. Same shape as a Scenario, so
+ * the engine tests and the on-chain conformance run replay it like any scenario, plus the copy the
+ * simple layer shows. Files live in ideas/<id>.json. Each tx step is shown as a tappable
+ * transaction card: `label` is the card's sentence, `note` is the one-line "why" shown after the
+ * reveal. Cards show their outcome from the canonical run, so tapping order never changes it.
+ * `order` 0 is the home-page explainer ("How the Policy Engine decides"); 1 to 8 are the big ideas.
+ */
+export interface BigIdea extends Scenario {
+  oneLiner: string // the idea in one sentence, at most 15 words
+  explain: string[] // 1 to 3 short paragraphs, each at most 40 words
+  takeaway: string // one sentence to remember
+  deepDives: string[] // ids of scenarios in scenarios/ that go deeper
+}
+
 export type ChallengeVerdict = 'pass' | 'block'
 
 export interface ChallengeTest {
