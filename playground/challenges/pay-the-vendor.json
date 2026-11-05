@@ -102,5 +102,5 @@
       }
     }
   ],
-  "explain": "One rule does it: transfer on USDC, checked by a recipient allowlist with Dave on it. You never had to block Mallory, the approval or the ETH. With no rule, they are denied by default."
+  "explain": "One rule does it: transfer on USDC, checked by a recipient allowlist with Dave on it. You never had to block Mallory, the approval or the ETH. With no rule, they are denied by default. Why not put the allowlist on a catch-all instead? The allowlist is kept per token and learns the token from its rule; a catch-all names no token, so the Policy Guard refuses to set it up. You do not need one anyway: everything without a rule is already blocked."
 }

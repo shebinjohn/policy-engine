@@ -1,7 +1,8 @@
 /** Edit one rule: where it applies (target, action, call type, or catch-all) and which policy with which settings. */
-import { useState } from 'react'
-import type { OperationName, PermissionName, PolicyConfig, PolicyName, RuleSpec, World } from '../../engine/types.ts'
-import { ALL_POLICIES, pathSupport, policyInfo, policyLabel } from '../lib/content.ts'
+import { useMemo, useState } from 'react'
+import type { OperationName, PermissionName, PolicyConfig, PolicyName, RuleSpec, SimError, World } from '../../engine/types.ts'
+import { ALL_POLICIES, errorInfo, pathSupport, policyInfo, policyLabel } from '../lib/content.ts'
+import { engine } from '../sources.ts'
 import { describeConfig, entity, fnByName, fnBySelector, fnsFor, keyOf, moduleNames, ZERO_SELECTOR } from '../lib/describe.ts'
 import { AddressSelect, Button, Callout, Checkbox, Field, Glyph, Pill, Segmented, Select, TextInput, useEngineer } from './ui.tsx'
 import type { Option } from './ui.tsx'
@@ -185,15 +186,32 @@ export function RuleEditor({
   const canSave = scope === 'fallback' || (target !== '' && (action !== CUSTOM || customOk))
   const info = policyInfo(policy)
 
-  const save = () => {
+  const buildRule = (): RuleSpec => {
     const cfg = hasConfig(policy) ? (config as PolicyConfig) : undefined
     const rule: RuleSpec =
       scope === 'fallback'
         ? { fallback: operation, operation, policy }
         : { target, selector: action === CUSTOM ? custom : actionValid ? action : 'none', operation, policy }
     if (cfg) rule.config = cfg
-    onSave(rule)
+    return rule
   }
+  const save = () => onSave(buildRule())
+
+  // Ask the engine whether the Policy Guard would accept this rule at all: set it up on a fresh
+  // Safe with no guard. The policy's own configure decides (for example, the recipient allowlist
+  // refuses a catch-all), so this stays faithful without repeating the contract rules here.
+  const draftKey = JSON.stringify(buildRule())
+  const setupProblem = useMemo((): SimError | null => {
+    if (!canSave) return null
+    try {
+      engine.createWorld({ rules: [JSON.parse(draftKey) as RuleSpec], guards: { transaction: false, module: false } })
+      return null
+    } catch (e) {
+      return (e as { error?: SimError }).error ?? null
+    }
+  }, [draftKey, canSave])
+  const problemInfo = setupProblem ? errorInfo(setupProblem.error, setupProblem.policy ?? policy) : undefined
+  const problemIsSpecific = !!setupProblem && problemInfo !== undefined && problemInfo !== errorInfo(setupProblem.error)
 
   return (
     <div className="editor" role="group" aria-label={title ?? 'Rule editor'}>
@@ -249,8 +267,12 @@ export function RuleEditor({
       {info?.placement ? <p className="muted small">Where it fits: {info.placement}</p> : null}
       <PolicyConfigForm id={`${idPrefix}-cfg`} world={world} policy={policy} config={config} onChange={setConfig} />
       {info?.configHelp && hasConfig(policy) ? <p className="muted small">{info.configHelp}</p> : null}
-      {policy === 'MultiSendPolicy' && (scope === 'fallback' || action !== 'multiSend' || operation !== 'DELEGATECALL') ? (
-        <Callout tone="warning">Batch Check only fits a delegatecall to multiSend. Anywhere else, setting it up fails.</Callout>
+      {setupProblem ? (
+        <Callout tone="warning" title={`The Policy Guard would refuse this rule: ${problemInfo?.title ?? setupProblem.error}`}>
+          {problemIsSpecific ? problemInfo?.plain : setupProblem.message}
+          {problemInfo?.fix ? <> {problemInfo.fix}</> : null}
+          {engineer ? <span className="mono small"> ({setupProblem.policy ?? policy}.{setupProblem.error})</span> : null}
+        </Callout>
       ) : null}
       <div className="button-row">
         <Button id={`${idPrefix}-save`} variant="primary" onClick={save} disabled={!canSave}>

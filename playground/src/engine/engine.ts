@@ -304,6 +304,8 @@ export function confirmPolicy(w: World, conf: Configuration, effects: Effect[] |
   } catch (e) {
     if (e instanceof Revert) {
       const f: Fault = { ...e.fault }
+      // The revert came from this policy's own configure: name it, so its specific copy applies.
+      if (f.policy === undefined) f.policy = policy
       if (!f.message) f.message = configureFailMessage(policy, f.error)
       throw new Revert(f)
     }
@@ -326,8 +328,8 @@ function configureFailMessage(policy: PolicyName, error: string): string {
   if (error === 'Reverted') return `${policyLabel(policy)} could not read its settings.`
   if (error === 'InvalidSelector') {
     return policy === 'ERC20ApprovePolicy'
-      ? 'The Spender Allowlist can only be attached to approve.'
-      : 'The Recipient Allowlist can only be attached to transfer or transferFrom.'
+      ? 'The Spender Allowlist can only be attached to approve of one token, never to a catch-all.'
+      : 'The Recipient Allowlist can only be attached to transfer or transferFrom of one token, never to a catch-all.'
   }
   if (error === 'InvalidOperation') return `${policyLabel(policy)} can only be attached to plain calls, not delegatecalls.`
   if (error === 'InvalidModule') return 'The Module Allowlist needs a module address, not the zero address.'

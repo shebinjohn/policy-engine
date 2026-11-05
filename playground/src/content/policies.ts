@@ -101,7 +101,7 @@ export const POLICIES: Record<PolicyName, PolicyInfo> = {
       'It does not check who sends the transaction, so enabled modules can pay listed recipients too.',
       'With transferFrom it checks where the tokens go, not whose tokens they are.'
     ],
-    placement: 'Only on transfer or transferFrom of one token, with CALL.'
+    placement: 'Only on transfer or transferFrom of one token, with CALL. Never on a catch-all: a catch-all names no token.'
   },
   ERC20ApprovePolicy: {
     name: 'ERC20ApprovePolicy',
@@ -117,7 +117,7 @@ export const POLICIES: Record<PolicyName, PolicyInfo> = {
       'Any spender can be revoked, whatever the list says.',
       'Enabled modules can approve listed spenders too.'
     ],
-    placement: 'Only on approve of one token, with CALL.'
+    placement: 'Only on approve of one token, with CALL. Never on a catch-all: a catch-all names no token.'
   },
   MultiSendPolicy: {
     name: 'MultiSendPolicy',

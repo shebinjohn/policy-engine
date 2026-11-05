@@ -305,18 +305,20 @@ const list: Entry[] = [
     policy: 'ERC20TransferPolicy',
     name: 'InvalidSelector',
     source: 'Policy',
-    title: 'Wrong Function for Allowlist',
-    plain: 'The recipient allowlist only fits transfer or transferFrom. This rule names another function, so it cannot be set.',
-    fix: 'Attach the recipient allowlist to transfer or transferFrom of a token.',
+    title: 'Allowlist Needs a Token Transfer Rule',
+    plain:
+      'The recipient allowlist only fits transfer or transferFrom of one token. Its list is kept per token, and it learns the token from the rule it is attached to. A catch-all names no token and no function, and other functions are not transfers, so the Policy Guard refuses to set it up.',
+    fix: 'Attach the recipient allowlist to transfer (or transferFrom) of the token, as a specific call. Calls with no rule are already denied by default, so you do not need a catch-all to block the rest.',
     tech: 'ERC20TransferPolicy.InvalidSelector(): configure on an access selector whose selector is not transfer or transferFrom.'
   },
   {
     policy: 'ERC20ApprovePolicy',
     name: 'InvalidSelector',
     source: 'Policy',
-    title: 'Wrong Function for Allowlist',
-    plain: 'The spender allowlist only fits approve. This rule names another function, so it cannot be set.',
-    fix: 'Attach the spender allowlist to approve of a token.',
+    title: 'Allowlist Needs an Approve Rule',
+    plain:
+      'The spender allowlist only fits approve of one token. Its list is kept per token, and it learns the token from the rule it is attached to. A catch-all names no token and no function, so the Policy Guard refuses to set it up.',
+    fix: 'Attach the spender allowlist to approve of the token, as a specific call.',
     tech: 'ERC20ApprovePolicy.InvalidSelector(): configure on an access selector whose selector is not approve.'
   },
   {
