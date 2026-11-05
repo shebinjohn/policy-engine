@@ -70,6 +70,39 @@
       "want": "pass"
     },
     {
+      "label": "Run next month's payroll: Dave 4000 USDC, Erin 3500 USDC",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "USDC",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Dave",
+                  "4000"
+                ]
+              }
+            },
+            {
+              "to": "USDC",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Erin",
+                  "3500"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "want": "pass"
+    },
+    {
       "label": "Run payroll with Mallory instead of Erin",
       "tx": {
         "to": "MultiSend",
@@ -198,5 +231,6 @@
       }
     }
   ],
-  "explain": "The Batch Checker opens the batch and then runs every step through the rule table, as if each were sent alone. So a batch needs two rules: one for the batch and one for what is inside it. One step that fails its rule blocks the whole batch."
+  "explain": "The Batch Checker opens the batch and then runs every step through the rule table, as if each were sent alone. So a batch needs two rules: one for the batch and one for what is inside it. One step that fails its rule blocks the whole batch.",
+  "testMode": "sequence"
 }

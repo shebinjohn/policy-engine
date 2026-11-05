@@ -57,6 +57,20 @@
       "want": "pass"
     },
     {
+      "label": "Pay Dave's next invoice, 800 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Dave",
+            "800"
+          ]
+        }
+      },
+      "want": "pass"
+    },
+    {
       "label": "Pay Erin's 3000 USDC invoice, co-signed",
       "tx": {
         "to": "USDC",

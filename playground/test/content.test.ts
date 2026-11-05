@@ -87,3 +87,32 @@ describe('content: expectation helper', () => {
     }
   })
 })
+
+/**
+ * Every permission in a challenge solution must be pinned by a test: switching one ALWAYS to ONCE,
+ * or one ONCE to ALWAYS, must leave the challenge unsolved. Otherwise the tests cannot tell the two
+ * apart (for example a "monthly" payment tested only once) and a wrong answer earns full marks.
+ */
+describe('content: challenge permissions are pinned by tests', () => {
+  for (const { file, data: challenge } of challenges) {
+    const solution = JSON.stringify(challenge.solution)
+    const swaps: { label: string; rules: string }[] = []
+    for (const [from, to] of [
+      ['"ALWAYS"', '"ONCE"'],
+      ['"ONCE"', '"ALWAYS"']
+    ]) {
+      let at = solution.indexOf(from)
+      let n = 0
+      while (at !== -1) {
+        n++
+        swaps.push({ label: `${from} #${n} -> ${to}`, rules: solution.slice(0, at) + to + solution.slice(at + from.length) })
+        at = solution.indexOf(from, at + from.length)
+      }
+    }
+    if (swaps.length === 0) continue
+    it(`${challenge.id} (${file})`, () => {
+      const solvedBy = swaps.filter((s) => runChallenge(challenge, JSON.parse(s.rules)).solved).map((s) => s.label)
+      assert.deepEqual(solvedBy, [], `still solved after switching a permission: ${solvedBy.join(', ')}. Add a test that tells them apart.`)
+    })
+  }
+})

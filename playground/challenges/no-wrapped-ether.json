@@ -53,6 +53,20 @@
       "want": "pass"
     },
     {
+      "label": "Pay Erin 500 USDC again next week",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Erin",
+            "500"
+          ]
+        }
+      },
+      "want": "pass"
+    },
+    {
       "label": "Wrap 1 ETH with deposit",
       "tx": {
         "to": "WETH",
@@ -115,5 +129,6 @@
       }
     }
   ],
-  "explain": "WETH wraps ETH for empty calldata and for any function it does not know. Those calls miss the deny rule and land on the catch-all. A blocklist cannot win against a fallback, but an allowlist can: with no permissive catch-all, every call to WETH is denied by default."
+  "explain": "WETH wraps ETH for empty calldata and for any function it does not know. Those calls miss the deny rule and land on the catch-all. A blocklist cannot win against a fallback, but an allowlist can: with no permissive catch-all, every call to WETH is denied by default.",
+  "testMode": "sequence"
 }

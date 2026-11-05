@@ -32,6 +32,20 @@
       "want": "pass"
     },
     {
+      "label": "Pay Dave's next monthly invoice, 1500 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Dave",
+            "1500"
+          ]
+        }
+      },
+      "want": "pass"
+    },
+    {
       "label": "Pay Mallory 1500 USDC",
       "tx": {
         "to": "USDC",
@@ -102,5 +116,6 @@
       }
     }
   ],
-  "explain": "One rule does it: transfer on USDC, checked by a recipient allowlist with Dave on it. You never had to block Mallory, the approval or the ETH. With no rule, they are denied by default. Why not put the allowlist on a catch-all instead? The allowlist is kept per token and learns the token from its rule; a catch-all names no token, so the Policy Guard refuses to set it up. You do not need one anyway: everything without a rule is already blocked."
+  "explain": "One rule does it: transfer on USDC, checked by a recipient allowlist with Dave on it, set to Always because he invoices every month. Once would pay the first invoice and refuse the next. You never had to block Mallory, the approval or the ETH. With no rule, they are denied by default. Why not put the allowlist on a catch-all instead? The allowlist is kept per token and learns the token from its rule; a catch-all names no token, so the Policy Guard refuses to set it up. You do not need one anyway: everything without a rule is already blocked.",
+  "testMode": "sequence"
 }
