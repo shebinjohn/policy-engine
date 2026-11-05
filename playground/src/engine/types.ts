@@ -296,6 +296,7 @@ export interface Scenario {
   setup: SetupSpec
   steps: ScenarioStep[]
   conformance?: boolean | string // false or a reason string = skip on-chain check; default true
+  engine?: boolean | string // false or a reason string = skip the engine replay (the chain outcome depends on something the engine does not model); default true
 }
 
 export type ChallengeVerdict = 'pass' | 'block'
