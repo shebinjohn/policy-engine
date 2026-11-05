@@ -79,8 +79,9 @@ export const GLOSSARY: Term[] = [
   },
   {
     term: 'Hardening',
-    plain: 'Setting up the rules while no guard is installed, then installing the Policy Guard in both slots. After that, rules change only through the waiting period.',
-    tech: 'configureImmediately, then setGuard and setModuleGuard, ideally in one batch.'
+    plain:
+      'Setting up the rules while no guard is installed, then installing the Policy Guard in both slots: the module guard first, or both in one batch. After that, rules change only through the waiting period.',
+    tech: 'configureImmediately, then setModuleGuard before setGuard. Once the transaction guard is set, a separate setModuleGuard is a checked call and needs a rule.'
   },
   {
     term: 'Policy',

@@ -19,7 +19,7 @@ export interface PolicyInfo {
   label: string // 'Recipient Allowlist'
   oneLiner: string // 'Only lets tokens go to people you list.'
   plain: string // 2-4 sentences
-  paths: 'both' | 'owner-only' // CoSigner, IncreasedThreshold, Safenet are owner-only; AllowedModule only passes module txs
+  paths: 'both' | 'owner-only' | 'module-only' // CoSigner, IncreasedThreshold, Safenet: owner-only; AllowedModule: module-only
   configHelp: string // how to fill its settings in the rule editor
   stateful: boolean // does a check change its stored state (spent grants, spent signatures)?
   pitfalls: string[] // short sentences, from the README's limitations

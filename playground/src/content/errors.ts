@@ -440,14 +440,7 @@ const list: Entry[] = [
     source: 'Policy',
     title: 'Attestation Does Not Match',
     plain: 'The Safenet signature does not match this transaction. It may have been made for a different one.',
-    tech: 'InvalidMulMulAddWitness(): Secp256k1.mulmuladd inside FROST.verify; the Schnorr equation does not hold for this message.'
-  },
-  {
-    name: 'InvalidSignature',
-    source: 'Policy',
-    title: 'Attestation Does Not Match',
-    plain: 'The Safenet signature does not match this transaction. It may have been made for a different one.',
-    tech: 'FROST.verify failure. On chain a mismatched signature reverts with InvalidMulMulAddWitness() from Secp256k1.'
+    tech: 'InvalidMulMulAddWitness(): the revert SafenetPolicy forwards when FROST.verify meets a well-formed signature over another message. Thrown by Secp256k1.mulmuladd: the Schnorr equation does not hold.'
   },
   {
     name: 'InvalidScalar',
@@ -594,15 +587,19 @@ const list: Entry[] = [
     name: 'GS300',
     source: 'Safe',
     title: 'Not a Transaction Guard',
-    plain: 'The address set as the transaction guard does not say it can act as one.',
-    tech: 'GS300: GuardManager.setGuard, supportsInterface(ITransactionGuard) is false.'
+    plain:
+      'The contract set as the transaction guard answered that it is not one. This fires only for a contract that can answer the question. An address with no code, or a contract that cannot answer, fails with no reason instead.',
+    fix: 'Set the Policy Guard, or the zero address to remove the guard.',
+    tech: 'GS300: GuardManager.setGuard when supportsInterface(ITransactionGuard) returns false. If that call reverts or returns nothing (no code, no ERC-165), setGuard reverts with empty data: Reverted.'
   },
   {
     name: 'GS301',
     source: 'Safe',
     title: 'Not a Module Guard',
-    plain: 'The address set as the module guard does not say it can act as one.',
-    tech: 'GS301: ModuleManager.setModuleGuard, supportsInterface(IModuleGuard) is false.'
+    plain:
+      'The contract set as the module guard answered that it is not one. This fires only for a contract that can answer the question. An address with no code, or a contract that cannot answer, fails with no reason instead.',
+    fix: 'Set the Policy Guard, or the zero address to remove the module guard.',
+    tech: 'GS301: ModuleManager.setModuleGuard when supportsInterface(IModuleGuard) returns false. If that call reverts or returns nothing (no code, no ERC-165), setModuleGuard reverts with empty data: Reverted.'
   },
 
   // -------------------------------------------------------------------------------------------
@@ -647,7 +644,7 @@ const list: Entry[] = [
     source: 'Execution',
     title: 'Call Reverted',
     plain:
-      'The call failed without giving a reason. Common causes: not enough ETH, a function the target does not have, or ETH sent to a token. Everything is undone.',
+      'The call failed without giving a reason. Common causes: not enough ETH, a function the target does not have, ETH sent to a token, or a guard set to an address that is not a guard. Everything is undone.',
     tech: 'Empty revert data, bubbled up by Safe.execTransaction because safeTxGas == 0 and gasPrice == 0.'
   },
   {

@@ -60,7 +60,7 @@ export const POLICIES: Record<PolicyName, PolicyInfo> = {
     oneLiner: 'Lets listed modules through and refuses owners.',
     plain:
       'Checks which module sent the transaction, using the identity the guard itself provides, which no one can fake. Owner transactions come from no module, so this rule always refuses them. It does not look at what the module does: amounts and recipients are up to the module.',
-    paths: 'both',
+    paths: 'module-only',
     configHelp: 'Pick a module and whether it is allowed. Allowed off removes a module that was allowed before.',
     stateful: false,
     pitfalls: [
