@@ -17,6 +17,7 @@ import {
   sameAddress
 } from '../lib/describe.ts'
 import { EMPTY_CONTEXT, emptyStep, stepAsTx, toTxSpec } from '../lib/draft.ts'
+import { pathSupport } from '../lib/content.ts'
 import type { ContextDraft, StepDraft, TxDraft } from '../lib/draft.ts'
 import { plural } from '../lib/format.ts'
 import { guardState } from './Safe.tsx'
@@ -94,6 +95,16 @@ function lookupPreview(world: World, tx: TxSpec, encoded: EncodedTx): Preview {
   if ('error' in res) return { tone: 'danger', label: 'Blocked', text: res.error.message }
   if (!res.entry) return { tone: 'danger', label: 'No rule', text: 'No rule and no catch-all matches. Deny by default: it will be blocked.' }
   const w = describeTableEntry(world, res.entry)
+  const support = pathSupport(res.entry.policy)
+  const path = tx.path ?? 'owner'
+  const refuses = (support.paths === 'owner-only' && path === 'module') || (support.paths === 'module-only' && path === 'owner')
+  if (refuses) {
+    return {
+      tone: 'warning',
+      label: res.usedFallback ? 'Catch-all rule' : 'Rule',
+      text: `${ruleLine(w)}. ${w.policy} accepts ${support.label.toLowerCase()}, so it will refuse this ${path === 'module' ? 'module' : 'owner'} transaction.`
+    }
+  }
   return { tone: 'neutral', label: res.usedFallback ? 'Catch-all rule' : 'Rule', text: ruleLine(w) }
 }
 

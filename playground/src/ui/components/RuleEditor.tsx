@@ -1,9 +1,9 @@
 /** Edit one rule: where it applies (target, action, call type, or catch-all) and which policy with which settings. */
 import { useState } from 'react'
 import type { OperationName, PermissionName, PolicyConfig, PolicyName, RuleSpec, World } from '../../engine/types.ts'
-import { ALL_POLICIES, policyInfo, policyLabel } from '../lib/content.ts'
+import { ALL_POLICIES, pathSupport, policyInfo, policyLabel } from '../lib/content.ts'
 import { describeConfig, entity, fnByName, fnBySelector, fnsFor, keyOf, moduleNames, ZERO_SELECTOR } from '../lib/describe.ts'
-import { AddressSelect, Button, Callout, Checkbox, Field, Glyph, Segmented, Select, TextInput, useEngineer } from './ui.tsx'
+import { AddressSelect, Button, Callout, Checkbox, Field, Glyph, Pill, Segmented, Select, TextInput, useEngineer } from './ui.tsx'
 import type { Option } from './ui.tsx'
 
 type Row = { account: string; permission: PermissionName }
@@ -242,6 +242,10 @@ export function RuleEditor({
       <Field id={`${idPrefix}-policy`} label="Policy" hint={info?.oneLiner}>
         <Select id={`${idPrefix}-policy`} value={policy} onChange={(v) => changePolicy(v as PolicyName)} options={policies.map((p) => ({ value: p, label: engineer ? `${policyLabel(p)} · ${p}` : policyLabel(p) }))} />
       </Field>
+      <div className="chips">
+        <Pill tone={pathSupport(policy).restricted ? 'warning' : 'neutral'}>{pathSupport(policy).label}</Pill>
+        {info?.stateful ? <Pill tone="info">Remembers what it allowed</Pill> : null}
+      </div>
       {info?.placement ? <p className="muted small">Where it fits: {info.placement}</p> : null}
       <PolicyConfigForm id={`${idPrefix}-cfg`} world={world} policy={policy} config={config} onChange={setConfig} />
       {info?.configHelp && hasConfig(policy) ? <p className="muted small">{info.configHelp}</p> : null}

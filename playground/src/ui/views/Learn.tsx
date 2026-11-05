@@ -1,6 +1,6 @@
 /** Learn: how a check flows, the policies, and the glossary. */
 import { useState } from 'react'
-import { ALL_POLICIES, GLOSSARY, POLICY_LIST, policyLabel } from '../lib/content.ts'
+import { ALL_POLICIES, GLOSSARY, POLICY_LIST, pathSupport, policyLabel } from '../lib/content.ts'
 import { Field, Glyph, Pill, TextInput, useEngineer } from '../components/ui.tsx'
 
 function FlowDiagram() {
@@ -111,7 +111,7 @@ function PolicyCards() {
               <>
                 <p className="policy-one">{full.oneLiner}</p>
                 <div className="chips">
-                  <Pill tone={full.paths === 'owner-only' ? 'warning' : 'neutral'}>{full.paths === 'owner-only' ? 'Owner transactions only' : 'Owner and module transactions'}</Pill>
+                  <Pill tone={pathSupport(full.name).restricted ? 'warning' : 'neutral'}>{pathSupport(full.name).label}</Pill>
                   {full.stateful ? <Pill tone="info">Remembers what it allowed</Pill> : null}
                 </div>
                 <p className="small">{full.plain}</p>

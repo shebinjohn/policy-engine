@@ -301,19 +301,21 @@ export function ResultView({
   tx,
   world,
   animate = false,
-  headingLevel = 3
+  headingLevel = 3,
+  showSummary = true
 }: {
   result: SimResult
   tx: TxSpec
   world: World
   animate?: boolean
   headingLevel?: 2 | 3 | 4
+  showSummary?: boolean
 }) {
   const engineer = useEngineer()
   const H = `h${headingLevel}` as 'h2' | 'h3' | 'h4'
   return (
     <div className="result">
-      <TxSummary world={world} tx={tx} />
+      {showSummary ? <TxSummary world={world} tx={tx} /> : null}
       <Verdict result={result} />
       <section className="result-section" aria-label="Decision path">
         <H className="section-title">Decision path</H>

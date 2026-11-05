@@ -85,7 +85,7 @@ export function describeAccess(w: World | null, access: string): string {
     if (SAFE_FNS.has(entry.name) && kind !== 'safe') return `${entry.name} calls to ${t}${suffix}`
     return FN_PHRASE[entry.name](t) + suffix
   }
-  return `calls to ${t} with function ${selector}${suffix}`
+  return `calls to ${t} with an unknown function${suffix}`
 }
 
 /** Plain description of one call, decoded from its bytes. */
@@ -101,7 +101,7 @@ export function describeCall(w: World | null, to: string, value: bigint, data: s
   const selector = data.slice(0, 10)
   const entry = catalogBySelector(selector)
   if (!entry) {
-    return op === 1 ? `Delegatecall into ${t} with function ${selector}` : `Call ${t} with function ${selector}${withEth}`
+    return op === 1 ? `Delegatecall into ${t} with an unknown function` : `Call ${t} with an unknown function${withEth}`
   }
   let args: ethers.Result
   try {
@@ -331,6 +331,10 @@ export const T = {
   signaturesOk: (n: number, of: number) => `${n} of ${of} owners signed`,
   signaturesTooFew: (n: number, need: number) => `Only ${plural(n, 'owner')} signed, the Safe needs ${need}`,
   signaturesBad: (who: string) => `${who} cannot sign for this Safe`,
+  signaturesTooFewContext: (n: number, need: number) =>
+    `Only ${plural(n, 'owner')} signed, the Safe needs ${need}, and the attached context is no signature`,
+  signaturesContextDetail:
+    'The Safe reads its missing signatures from the bytes that follow, which here hold the policy context.',
   signaturesDuplicate: (who: string) => `${who} signed twice`,
   signaturesDetail: 'The Safe checks the owner signatures before anything else.',
   nonce: (from: number, to: number) => `Nonce goes from ${from} to ${to}`,
@@ -353,8 +357,8 @@ export const T = {
     'With a gas limit set, a failed call would not revert, and policy changes would stick. The guard forbids it.',
   gasIgnored: 'Gas settings are not 0, and no guard checks them',
   // Engine
-  selectorEmpty: 'No calldata, so the function key is 0x00000000',
-  selectorEmptyDetail: 'Plain transfers and empty calls share the key 0x00000000 with any data starting with four zero bytes.',
+  selectorEmpty: 'No calldata: a plain transfer or an empty call',
+  selectorEmptyDetail: 'An empty call uses the all-zero function key, the same key as any data that starts with four zero bytes.',
   selectorOk: (fn: string) => `The call names the function ${fn}`,
   selectorUnknown: 'The call names a function the playground does not know',
   selectorZero: 'The data starts with four zero bytes, the same key as an empty call',

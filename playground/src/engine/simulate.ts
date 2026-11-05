@@ -7,11 +7,13 @@ import { accessSelector, decodeSelector, type Op } from './access.ts'
 import { EngineInputError, eqAddr, resolveAddress, shortLabel } from './book.ts'
 import { configurationRootOf, contextFor, encodeTxCall, ruleToConfiguration, toEncodedTx, type EncodedCall } from './catalog.ts'
 import { checkTransaction, getPolicy, type EngineCtx, type Matched } from './engine.ts'
+import { contextLength } from './policies/common.ts'
 import { Revert, toSimError, type Fault } from './errors.ts'
 import { describeCall, E, makeMessageFor, T } from './messages.ts'
 import { executeFromSafe, type ExecCtx } from './safe.ts'
 import type {
   CallSpec,
+  ContextSpec,
   Effect,
   EncodedTx,
   ErrorSource,
@@ -118,38 +120,82 @@ function byAddress(a: string, b: string): number {
   return x < y ? -1 : x > y ? 1 : 0
 }
 
+type SafeSigCheck = { ok: true } | { ok: false; error: 'GS020' | 'GS026'; who: string | null; duplicate?: boolean }
+
+/**
+ * Safe.checkNSignatures(executor, txHash, signatures, threshold) over the bytes the harness sends:
+ * the sorted owner signatures, then (if any) the context envelope `[payload][len][typeHash]`.
+ * Too few owner signatures do not give GS020 once a context makes the blob long enough: the Safe
+ * reads the next 65-byte slot out of the context. A co-signature or owner signatures in the
+ * context are real signatures over the same hash (gas fields zero); anything else is garbage.
+ */
+export function checkSafeSignatures(
+  w: World,
+  sorted: string[],
+  context: ContextSpec,
+  threshold: number,
+  gasZero: boolean
+): SafeSigCheck {
+  const tail = context === null ? 0 : contextLength(context) + 64
+  if (65 * sorted.length + tail < 65 * threshold) return { ok: false, error: 'GS020', who: null }
+  const fromContext = (j: number): string | null => {
+    if (!gasZero || context === null) return null
+    try {
+      if (context.type === 'cosignature') return j === 0 ? resolveAddress(w, context.signer) : null
+      if (context.type === 'ownerSignatures') {
+        const inner = context.signers.map((s) => resolveAddress(w, s)).sort(byAddress)
+        return inner[j] ?? null
+      }
+    } catch {
+      return null
+    }
+    return null
+  }
+  let last = 0n
+  for (let i = 0; i < threshold; i++) {
+    const who = i < sorted.length ? sorted[i] : fromContext(i - sorted.length)
+    if (who === null) return { ok: false, error: 'GS026', who: null }
+    const cur = BigInt(who)
+    const isOwner = w.safe.owners.some((o) => eqAddr(o, who))
+    if (cur <= last || !isOwner) return { ok: false, error: 'GS026', who, duplicate: isOwner }
+    last = cur
+  }
+  return { ok: true }
+}
+
 function ownerTx(run: Run, rootHints: Record<string, RuleSpec[]>): SimResult {
   const w = run.w
   const tx = run.tx
   const threshold = w.safe.threshold
 
-  // 1. checkSignatures(executor, txHash, signatures): the first `threshold` sorted signatures.
+  // 1. checkSignatures(executor, txHash, signatures): the first `threshold` 65-byte slots.
   const signers = tx.signers
     ? tx.signers.map((s) => resolveAddress(w, s))
     : w.safe.owners.slice(0, threshold)
   const sorted = [...signers].sort(byAddress)
-  if (sorted.length < threshold) {
-    ev(run, 'safe.signatures', 'Safe', 'fail', T.signaturesTooFew(sorted.length, threshold), {
-      detail: T.signaturesDetail,
-      tech: `checkNSignatures: signatures.length < ${threshold} * 65 reverts GS020`
+  const gasPrice = bigintOf(tx.gasPrice, 'gasPrice')
+  const safeTxGas = bigintOf(tx.safeTxGas, 'safeTxGas')
+  const sig = checkSafeSignatures(w, sorted, contextFor(tx), threshold, gasPrice === 0n && safeTxGas === 0n)
+  if (!sig.ok) {
+    const title =
+      sig.error === 'GS020'
+        ? T.signaturesTooFew(sorted.length, threshold)
+        : sig.who === null
+          ? T.signaturesTooFewContext(sorted.length, threshold)
+          : sig.duplicate
+            ? T.signaturesDuplicate(shortLabel(w, sig.who))
+            : T.signaturesBad(shortLabel(w, sig.who))
+    ev(run, 'safe.signatures', 'Safe', 'fail', title, {
+      detail: sig.error === 'GS026' && sig.who === null ? T.signaturesContextDetail : T.signaturesDetail,
+      tech:
+        sig.error === 'GS020'
+          ? `checkNSignatures: signatures.length < ${threshold} * 65 reverts GS020`
+          : 'checkNSignatures: currentOwner <= lastOwner || owners[currentOwner] == address(0) reverts GS026'
     })
-    return failResult(run, { error: 'GS020' }, 'safe', undefined)
+    return failResult(run, { error: sig.error }, 'safe', undefined)
   }
-  let last = 0n
-  for (let i = 0; i < threshold; i++) {
-    const cur = BigInt(sorted[i])
-    const isOwner = w.safe.owners.some((o) => eqAddr(o, sorted[i]))
-    if (cur <= last || !isOwner) {
-      const name = shortLabel(w, sorted[i])
-      ev(run, 'safe.signatures', 'Safe', 'fail', isOwner ? T.signaturesDuplicate(name) : T.signaturesBad(name), {
-        detail: T.signaturesDetail,
-        tech: 'checkNSignatures: currentOwner <= lastOwner || owners[currentOwner] == address(0) reverts GS026'
-      })
-      return failResult(run, { error: 'GS026' }, 'safe', undefined)
-    }
-    last = cur
-  }
-  ev(run, 'safe.signatures', 'Safe', 'pass', T.signaturesOk(Math.min(new Set(sorted).size, w.safe.owners.length), w.safe.owners.length), {
+  const distinct = new Set(sorted.filter((a) => w.safe.owners.some((o) => eqAddr(o, a))).map((a) => a.toLowerCase())).size
+  ev(run, 'safe.signatures', 'Safe', 'pass', T.signaturesOk(Math.max(threshold, distinct), w.safe.owners.length), {
     detail: T.signaturesDetail,
     tech: `checkSignatures: ${threshold} of ${w.safe.owners.length} required`
   })
@@ -160,8 +206,6 @@ function ownerTx(run: Run, rootHints: Record<string, RuleSpec[]>): SimResult {
   ev(run, 'safe.nonce', 'Safe', 'info', T.nonce(signedNonce, w.safe.nonce), { detail: T.nonceDetail(signedNonce) })
   run.effects.push({ kind: 'nonce', title: E.nonce(signedNonce, w.safe.nonce), tech: `nonce ${signedNonce} -> ${w.safe.nonce}` })
 
-  const gasPrice = bigintOf(tx.gasPrice, 'gasPrice')
-  const safeTxGas = bigintOf(tx.safeTxGas, 'safeTxGas')
   const guarded = w.safe.txGuard !== null
   let matched: SimResult['matched'] = undefined
 

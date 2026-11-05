@@ -63,8 +63,9 @@ export function ScenarioList({ onOpen }: { onOpen: (id: string) => void }) {
 
 function stepStatus(o: StepOutcome | undefined, ran: boolean): { status: string; label: string } {
   if (!ran || !o) return { status: 'none', label: 'Not run' }
-  if (o.step.do === 'wait') return { status: 'pass', label: 'Done' }
-  return o.matches === false ? { status: 'fail', label: 'Unexpected' } : { status: 'pass', label: o.result?.ok ? 'Allowed' : 'Blocked' }
+  if (o.step.do === 'wait') return { status: 'info', label: 'Waited' }
+  if (o.matches === false) return { status: 'warn', label: 'Unexpected' }
+  return o.result?.ok ? { status: 'pass', label: 'Allowed' } : { status: 'fail', label: 'Blocked' }
 }
 
 export function ScenarioView({
@@ -113,7 +114,7 @@ export function ScenarioView({
           Scenarios
         </button>
         <span aria-hidden="true">/</span>
-        <span>{scenario.chapter}</span>
+        <span>{CHAPTERS.find((c) => c.id === scenario.chapter)?.title ?? scenario.chapter}</span>
       </nav>
       <header className="view-head">
         <p className="overline">Scenario {pos + 1}</p>
@@ -220,7 +221,7 @@ export function ScenarioView({
                       ) : (
                         <Callout tone="success" title="Matches the expected outcome" />
                       )}
-                      <ResultView result={outcome.result} tx={step.tx} world={worldBefore} animate headingLevel={3} />
+                      <ResultView result={outcome.result} tx={step.tx} world={worldBefore} animate headingLevel={3} showSummary={false} />
                     </>
                   ) : null}
                   {step.do === 'wait' && outcome ? (
