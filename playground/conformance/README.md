@@ -197,6 +197,7 @@ must reproduce.
 | `fixture-context-kinds` | Safenet attestations (valid, missing, untrusted, corrupted) and IncreasedThreshold owner signatures |
 | `fixture-policy-edges` | One-time grants, ONCE permissions in a batch, Safenet per-nonce spending, signature checks with a context, root lifecycle, exact delay boundary |
 | `fixture-spec-pins` | Safe 1.5.0, MultiSendCallOnly and WETH9 execution edge cases with no guard, where SPEC §9 and the chain differ |
+| `fuzz/fuzz-*` | Minimal reproducers from differential fuzzing (random scenarios, engine outcome replayed on chain). Each pins the chain outcome; its `summary` starts with the classification (ENGINE BUG, MODEL LIMIT, HARNESS BUG) and names the deciding contract line, and `lesson` says what the engine answers instead. Discovered from `fixtures/fuzz/` as well |
 | `fixture-challenge-vendor` | The challenge path (solution passes, starting rules fail) |
 
 ## Using it from a standalone playground repository
