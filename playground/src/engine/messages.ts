@@ -77,7 +77,7 @@ export function describeAccess(w: World | null, access: string): string {
   }
   const t = shortLabel(w, target)
   const suffix = op === 1 ? ' (as delegatecall)' : ''
-  if (selector === '0x00000000') return `plain transfers and empty calls to ${t}${suffix}`
+  if (selector === '0x00000000') return `plain transfers to ${t}${suffix}`
   const entry = catalogBySelector(selector)
   if (entry) {
     const kind = kindOf(w, target)
@@ -341,6 +341,11 @@ export const T = {
   nonceDetail: (n: number) =>
     `The owners signed nonce ${n}. Policies that check signatures use that number, so a signature works once.`,
   noTxGuard: 'No guard: the Safe runs this without any policy check',
+  noTxGuardBatch: 'No guard yet, so this batch is not checked',
+  noTxGuardBatchDetail:
+    'The Safe reads its guard once, before the batch starts. A guard installed by a step only checks later transactions.',
+  guardCaptured: 'The Safe asks the guard it had when the transaction started',
+  guardCapturedDetail: 'The Safe read its guard before the check. A guard change inside this transaction applies from the next one.',
   noTxGuardDetail: 'The Policy Guard is not installed as the transaction guard, so owner transactions skip every rule.',
   noModuleGuard: 'No module guard: modules bypass every policy',
   noModuleGuardDetail: 'The Policy Guard is not installed as the module guard, so this module call skips every rule.',
@@ -374,6 +379,8 @@ export const T = {
     'Only requesting, applying and cancelling rule changes may reach the guard. Setting rules immediately is not possible once the guard is on.',
   exactHit: (what: string, policy: string) => `Rule found: ${what} are checked by ${policy}`,
   exactMiss: (what: string) => `No rule of its own for ${what}`,
+  zeroKeyHit: (policy: string) => `The zero address shares its key with the catch-all rule: ${policy}`,
+  zeroKeyHitDetail: 'A plain transfer to the zero address has the same key as the catch-all rule, so the catch-all rule decides.',
   fallbackHit: 'No rule for this call, so the Safe uses the catch-all rule',
   fallbackHitDetail: (policy: string, op: string) => `The catch-all rule for ${op} is ${policy}.`,
   noRule: 'No rule and no catch-all rule, so the Safe refuses by default',

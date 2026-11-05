@@ -172,11 +172,13 @@ export function checkTransaction(
   const look = getPolicy(w, call.to, call.data, call.operation)
   const what = describeAccess(w, look.exact)
   if (look.entry && !look.usedFallback) {
+    const zeroKey = look.entry.isFallback
     push(ectx, depth, subTx, {
       id: 'engine.lookup.exact',
       actor: 'Engine',
       status: 'pass',
-      title: T.exactHit(what, policyLabel(look.entry.policy)),
+      title: zeroKey ? T.zeroKeyHit(policyLabel(look.entry.policy)) : T.exactHit(what, policyLabel(look.entry.policy)),
+      detail: zeroKey ? T.zeroKeyHitDetail : undefined,
       tech: `$policies[safe][${look.exact}] = ${look.entry.policy}`,
       policy: look.entry.policy,
       access: look.exact
@@ -254,7 +256,7 @@ export function checkTransaction(
   if (!magic) {
     throw new Revert({ error: 'AccessDenied', policy: entry.policy, args: { policy: policyAddress(w, entry.policy) } })
   }
-  return { access: look.access, policy: entry.policy, isFallback: look.usedFallback }
+  return { access: look.access, policy: entry.policy, isFallback: look.usedFallback || entry.isFallback }
 }
 
 // ---------------------------------------------------------------------------------------------

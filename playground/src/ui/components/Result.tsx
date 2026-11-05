@@ -1,12 +1,13 @@
 /** "What happened": the verdict, the decision path drawn from the trace, and what changed. */
 import { useMemo } from 'react'
+import type { ReactNode } from 'react'
 import type { Effect, EncodedTx, SimResult, TraceEvent, TxSpec, World } from '../../engine/types.ts'
 import { errorInfo, innermost, policyLabel, solidityError } from '../lib/content.ts'
-import { describeCall, describeContext, describeWho, nameOf } from '../lib/describe.ts'
-import { formatUnits } from '../lib/format.ts'
+import { describeCall, describeContext, describeWho, isZero, nameOf } from '../lib/describe.ts'
+import { formatUnits, plural } from '../lib/format.ts'
 import { buildStages, splitEnd, stageLabel, statusWord } from '../lib/pipeline.ts'
 import type { PipeItem, Stage, SubItem } from '../lib/pipeline.ts'
-import { CopyText, Glyph, Pill, Status, Tech, useEngineer } from './ui.tsx'
+import { Callout, CopyText, Glyph, Pill, Status, Tech, useEngineer } from './ui.tsx'
 
 // ---------------------------------------------------------------------------------------------
 // Verdict
@@ -272,6 +273,54 @@ export function Encoded({ encoded }: { encoded: EncodedTx }) {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Batches and guard changes (SPEC §9): the Safe picks its guard once, before the transaction
+// ---------------------------------------------------------------------------------------------
+
+export function GuardNotes({ result, tx, world }: { result: SimResult; tx: TxSpec; world: World }) {
+  const batch = tx.call?.fn === 'multiSend' ? (tx.call.batch ?? []) : []
+  if (batch.length === 0) return null
+  const unchecked = result.trace.some((e) => e.depth === 0 && e.id === 'safe.noGuard')
+  const guardSteps = batch
+    .map((s, i) => ({ s, i }))
+    .filter(({ s }) => s.call && (s.call.fn === 'setGuard' || s.call.fn === 'setModuleGuard'))
+    .map(({ s, i }) => ({
+      i,
+      which: s.call!.fn === 'setGuard' ? 'transaction guard' : 'module guard',
+      removes: isZero(world, s.call!.args?.[0])
+    }))
+  const installs = guardSteps.filter((g) => !g.removes)
+  const removals = guardSteps.filter((g) => g.removes)
+  const out: ReactNode[] = []
+  if (unchecked) {
+    out.push(
+      <Callout key="unchecked" tone="warning" title="This batch ran unchecked">
+        No guard was installed when it started, and the Safe picks its guard once, before a transaction runs. None of its{' '}
+        {plural(batch.length, 'step')} was checked.
+        {result.ok && installs.length > 0 ? ' The guards it installed check every transaction from the next one on.' : ''}
+      </Callout>
+    )
+  } else if (result.ok) {
+    for (const g of installs) {
+      if (g.i < batch.length - 1) {
+        out.push(
+          <Callout key={`in-${g.i}`} tone="info" title={`Step ${g.i + 1} installed the ${g.which}`}>
+            The steps after it were not checked again by it. It checks from the next transaction on.
+          </Callout>
+        )
+      }
+    }
+    for (const g of removals) {
+      out.push(
+        <Callout key={`rm-${g.i}`} tone="info" title={`Step ${g.i + 1} removed the ${g.which}`}>
+          This batch was still checked by it: the Safe picked its guard before the batch ran, and ran its after-check too.
+        </Callout>
+      )
+    }
+  }
+  return out.length ? <div className="stack-sm">{out}</div> : null
+}
+
+// ---------------------------------------------------------------------------------------------
 // Whole result
 // ---------------------------------------------------------------------------------------------
 
@@ -317,6 +366,7 @@ export function ResultView({
     <div className="result">
       {showSummary ? <TxSummary world={world} tx={tx} /> : null}
       <Verdict result={result} />
+      <GuardNotes result={result} tx={tx} world={world} />
       <section className="result-section" aria-label="Decision path">
         <H className="section-title">Decision path</H>
         <Pipeline result={result} path={tx.path ?? 'owner'} animate={animate} />

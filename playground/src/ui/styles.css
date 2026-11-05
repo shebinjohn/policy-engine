@@ -1337,6 +1337,40 @@ span.tech {
   gap: 8px;
 }
 
+.helper {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.helper-title {
+  font-weight: 700;
+}
+
+.helper-steps {
+  list-style: decimal;
+  padding-left: 20px;
+  display: grid;
+  gap: 6px;
+}
+
+.config-editor {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+}
+
+.config-source {
+  display: grid;
+  gap: 10px;
+}
+
 .confirm {
   display: grid;
   gap: 8px;
@@ -1409,11 +1443,6 @@ span.tech {
   gap: 10px;
 }
 
-.config-source {
-  padding: 10px 12px;
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-}
 
 .batch {
   display: grid;

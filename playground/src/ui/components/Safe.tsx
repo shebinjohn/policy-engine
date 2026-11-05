@@ -53,7 +53,7 @@ export function OwnersSection({ world, idPrefix = '' }: { world: World; idPrefix
   )
 }
 
-export function GuardsSection({ world, idPrefix = '' }: { world: World; idPrefix?: string }) {
+export function GuardsSection({ world, idPrefix = '', actions }: { world: World; idPrefix?: string; actions?: ReactNode }) {
   const g = guardState(world)
   const row = (on: boolean, name: string, what: string) => (
     <li className="guard-row">
@@ -88,6 +88,7 @@ export function GuardsSection({ world, idPrefix = '' }: { world: World; idPrefix
           No guard is installed, so no rule is checked. Rules can be set immediately, without a waiting period.
         </Callout>
       ) : null}
+      {actions}
     </Section>
   )
 }

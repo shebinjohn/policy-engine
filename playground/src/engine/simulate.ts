@@ -5,7 +5,7 @@
  */
 import { accessSelector, decodeSelector, type Op } from './access.ts'
 import { EngineInputError, eqAddr, resolveAddress, shortLabel } from './book.ts'
-import { configurationRootOf, contextFor, encodeTxCall, ruleToConfiguration, toEncodedTx, type EncodedCall } from './catalog.ts'
+import { SELECTORS, configurationRootOf, contextFor, encodeTxCall, ruleToConfiguration, toEncodedTx, type EncodedCall } from './catalog.ts'
 import { checkTransaction, getPolicy, type EngineCtx, type Matched } from './engine.ts'
 import { contextLength } from './policies/common.ts'
 import { Revert, toSimError, type Fault } from './errors.ts'
@@ -68,7 +68,7 @@ function matchedFor(run: Run): SimResult['matched'] {
   if (!top.some((e) => e.id.startsWith('engine.lookup.'))) return undefined
   const look = getPolicy(run.input, run.call.to, run.call.data, run.call.operation)
   if (!look.entry) return null
-  return { access: look.access, policy: look.entry.policy, isFallback: look.usedFallback }
+  return { access: look.access, policy: look.entry.policy, isFallback: look.usedFallback || look.entry.isFallback }
 }
 
 function failResult(run: Run, fault: Fault, by: ErrorSource, matched: SimResult['matched']): SimResult {
@@ -112,6 +112,10 @@ export function simulate(world: World, tx: TxSpec): SimResult {
   const rootHints: Record<string, RuleSpec[]> = {}
   collectRootHints(world, tx.call, rootHints)
   return (tx.path ?? 'owner') === 'module' ? moduleTx(run, rootHints) : ownerTx(run, rootHints)
+}
+
+function isBatch(call: EncodedCall): boolean {
+  return call.operation === 1 && call.data.slice(0, 10) === SELECTORS.multiSend
 }
 
 function byAddress(a: string, b: string): number {
@@ -206,11 +210,14 @@ function ownerTx(run: Run, rootHints: Record<string, RuleSpec[]>): SimResult {
   ev(run, 'safe.nonce', 'Safe', 'info', T.nonce(signedNonce, w.safe.nonce), { detail: T.nonceDetail(signedNonce) })
   run.effects.push({ kind: 'nonce', title: E.nonce(signedNonce, w.safe.nonce), tech: `nonce ${signedNonce} -> ${w.safe.nonce}` })
 
-  const guarded = w.safe.txGuard !== null
+  // Safe 1.5.0 reads the guard once, before the check, and calls checkAfterExecution on it.
+  const guardAtStart = w.safe.txGuard
+  const guarded = guardAtStart !== null
   let matched: SimResult['matched'] = undefined
 
   if (!guarded) {
-    ev(run, 'safe.noGuard', 'Safe', 'warn', T.noTxGuard, { detail: T.noTxGuardDetail })
+    if (isBatch(run.call)) ev(run, 'safe.noGuard', 'Safe', 'warn', T.noTxGuardBatch, { detail: T.noTxGuardBatchDetail })
+    else ev(run, 'safe.noGuard', 'Safe', 'warn', T.noTxGuard, { detail: T.noTxGuardDetail })
     if (gasPrice !== 0n || safeTxGas !== 0n) ev(run, 'safe.noGuard', 'Safe', 'warn', T.gasIgnored)
   } else {
     // 3. SafePolicyGuard.checkTransaction
@@ -264,8 +271,14 @@ function ownerTx(run: Run, rootHints: Record<string, RuleSpec[]>): SimResult {
     }
   }
 
-  // 5. checkAfterExecution(txHash, success)
-  if (guarded) ev(run, 'guard.after', 'Guard', 'pass', T.afterOk, { tech: 'checkAfterExecution(txHash, true)' })
+  // 5. checkAfterExecution(txHash, success) on the guard read before the check.
+  if (guarded) {
+    const changed = !eqAddr(run.w.safe.txGuard, guardAtStart)
+    ev(run, 'guard.after', 'Guard', 'pass', changed ? T.guardCaptured : T.afterOk, {
+      detail: changed ? T.guardCapturedDetail : undefined,
+      tech: 'checkAfterExecution(txHash, true) on the guard read before execution'
+    })
+  }
   return okResult(run, matched)
 }
 
@@ -282,6 +295,7 @@ function moduleTx(run: Run, rootHints: Record<string, RuleSpec[]>): SimResult {
   if (tx.context !== undefined && tx.context !== null) {
     ev(run, 'safe.context', 'Module', 'warn', T.moduleContextIgnored, { detail: T.moduleContextDetail })
   }
+  // preModuleExecution reads the module guard once; postModuleExecution uses the same one.
   const guarded = w.safe.moduleGuard !== null
   let matched: SimResult['matched'] = undefined
   const x: ExecCtx = { w, trace: run.trace, effects: run.effects, executor: module, rootHints }

@@ -26,7 +26,7 @@ import {
   guardState
 } from '../components/Safe.tsx'
 import type { LogEntry } from '../components/Safe.tsx'
-import { TxBuilder } from '../components/TxBuilder.tsx'
+import { BATCH_RULE, TxBuilder, hasBatchRule } from '../components/TxBuilder.tsx'
 import { Button, Callout, Glyph, Pill, Segmented, Select } from '../components/ui.tsx'
 
 interface Run {
@@ -75,6 +75,54 @@ function boot(preset: Preset): State {
 }
 
 type Tab = 'safe' | 'build' | 'result'
+
+function hardenTx(rules: RuleSpec[], signers: string[] | undefined): TxSpec {
+  return {
+    label: 'Harden in one batch',
+    to: 'MultiSend',
+    operation: 'DELEGATECALL',
+    signers,
+    call: {
+      fn: 'multiSend',
+      batch: [
+        { to: 'PolicyGuard', call: { fn: 'configureImmediately', configurations: structuredClone(rules) } },
+        { to: 'Safe', call: { fn: 'setModuleGuard', args: ['PolicyGuard'] } },
+        { to: 'Safe', call: { fn: 'setGuard', args: ['PolicyGuard'] } }
+      ]
+    }
+  }
+}
+
+function proposeBatchTx(rules: RuleSpec[], signers: string[] | undefined): TxSpec {
+  return {
+    label: 'Propose a change in a batch',
+    to: 'MultiSend',
+    operation: 'DELEGATECALL',
+    signers,
+    call: { fn: 'multiSend', batch: [{ to: 'PolicyGuard', call: { fn: 'requestConfiguration', configurations: structuredClone(rules) } }] }
+  }
+}
+
+function removeGuardsTx(signers: string[] | undefined): TxSpec {
+  return {
+    label: 'Remove both guards in one batch',
+    to: 'MultiSend',
+    operation: 'DELEGATECALL',
+    signers,
+    call: {
+      fn: 'multiSend',
+      batch: [
+        { to: 'Safe', call: { fn: 'setGuard', args: ['Zero'] } },
+        { to: 'Safe', call: { fn: 'setModuleGuard', args: ['Zero'] } }
+      ]
+    }
+  }
+}
+
+const REMOVAL_RULES: RuleSpec[] = [
+  { target: 'Safe', selector: 'setGuard', operation: 'CALL', policy: 'AllowPolicy', note: 'Lets the owners remove the transaction guard' },
+  { target: 'Safe', selector: 'setModuleGuard', operation: 'CALL', policy: 'AllowPolicy', note: 'Lets the owners remove the module guard' }
+]
 
 /** After a run, bring the verdict into view if it is above the fold or behind a tab. */
 function revealResult() {
@@ -175,6 +223,60 @@ export function Sandbox({ seed }: { seed?: Seed | null }) {
 
   const examples = useMemo(() => EXAMPLES.map((e) => ({ id: e.id, label: e.label })), [])
 
+  const signersNow = draft.path === 'owner' && draft.signers.length ? draft.signers : undefined
+  const draftTx = (tx: TxSpec) => {
+    setState((s) => ({ ...s, draft: fromTxSpec(s.world, tx) }))
+    setTab('build')
+    requestAnimationFrame(() => document.getElementById('panel-build')?.scrollIntoView({ block: 'start' }))
+  }
+  const tableHasBatchRule = Object.values(world.table).some((e) => e.policy === 'MultiSendPolicy')
+  const addRules = (rules: RuleSpec[]) =>
+    setState((s) => ({ ...s, changeSet: [...s.changeSet.filter((r) => !rules.some((x) => sameRuleKey(s.world, r, x))), ...rules] }))
+
+  const guardActions = g.none ? (
+    <div className="helper">
+      <p className="helper-title">Harden in one batch</p>
+      <p className="small">
+        Drafts one batch: set your drafted rules, then install the module guard and the transaction guard. Review it in the builder, then run it.
+      </p>
+      {changeSet.length === 0 ? (
+        <p className="small text-warning">No rules drafted. Hardened with no rules, the Safe blocks every transaction.</p>
+      ) : null}
+      {!hasBatchRule(changeSet) ? (
+        <p className="small">
+          Your drafted rules have no rule for batches.{' '}
+          <button type="button" className="link-button" id="harden-add-batch-rule" onClick={() => addRules([{ ...BATCH_RULE }])}>
+            Add the Batch Checker rule
+          </button>
+        </p>
+      ) : null}
+      <div className="button-row">
+        <Button id="harden-draft" variant="primary" size="sm" onClick={() => draftTx(hardenTx(changeSet, signersNow))}>
+          Harden in one batch
+        </Button>
+      </div>
+    </div>
+  ) : (
+    <details className="disclosure helper">
+      <summary>Remove the guards</summary>
+      <ol className="helper-steps small">
+        <li>
+          Allow it: add rules that let the owners call setGuard and setModuleGuard, propose them, wait, apply.{' '}
+          <button type="button" className="link-button" id="removal-rules" onClick={() => addRules(REMOVAL_RULES)}>
+            Add these rules to the change set
+          </button>
+        </li>
+        <li>
+          In a later transaction, remove both guards in one batch.{' '}
+          <button type="button" className="link-button" id="removal-batch" onClick={() => draftTx(removeGuardsTx(signersNow))}>
+            Draft the removal batch
+          </button>
+          {!tableHasBatchRule ? <span className="muted"> The Safe has no rule for batches yet, so add one too.</span> : null}
+        </li>
+      </ol>
+    </details>
+  )
+
   const safePanel = (
     <div className="panel" id="panel-safe">
       <div className="panel-head">
@@ -183,7 +285,7 @@ export function Sandbox({ seed }: { seed?: Seed | null }) {
       </div>
       <SafeHeader world={world} />
       <OwnersSection world={world} />
-      <GuardsSection world={world} />
+      <GuardsSection world={world} actions={guardActions} />
       <ModulesSection world={world} />
       <BalancesSection world={world} />
       <Section
@@ -225,19 +327,35 @@ export function Sandbox({ seed }: { seed?: Seed | null }) {
               )}
             />
             <div className="button-row">
-              <Button id="changes-propose" variant="primary" onClick={propose}>
-                Propose change
-              </Button>
+              {g.none ? null : (
+                <>
+                  <Button id="changes-propose" variant="primary" onClick={propose}>
+                    Propose change
+                  </Button>
+                  <Button id="changes-propose-batch" onClick={() => draftTx(proposeBatchTx(changeSet, signersNow))}>
+                    Propose in a batch
+                  </Button>
+                </>
+              )}
               {g.none ? (
-                <Button id="changes-now" onClick={setNow}>
-                  Set now (no guard yet)
-                </Button>
+                <>
+                  <Button id="changes-now" variant="primary" onClick={setNow}>
+                    Set now
+                  </Button>
+                  <Button id="changes-harden" onClick={() => draftTx(hardenTx(changeSet, signersNow))}>
+                    Set and harden in one batch
+                  </Button>
+                </>
               ) : null}
               <Button id="changes-clear" variant="ghost" onClick={() => setState((s) => ({ ...s, changeSet: [] }))}>
                 Clear
               </Button>
             </div>
-            <p className="muted small">Proposing starts the waiting period. Apply it once it is ready.</p>
+            <p className="muted small">
+              {g.none
+                ? 'No guard yet: rules can be set at once. Once a guard is on, every change waits out the waiting period.'
+                : 'Proposing starts the waiting period. Apply it once it is ready. In a batch it can go out with other steps.'}
+            </p>
           </div>
         )}
       </Section>

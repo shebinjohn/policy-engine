@@ -65,9 +65,9 @@ export const PRESETS: Preset[] = [
     tx: PAY_DAVE
   },
   {
-    id: 'no-guard',
-    label: 'No guard',
-    blurb: 'A plain Safe. Nothing checks transactions, so any 2 owners can do anything. Rules can be set immediately.',
+    id: 'unprotected',
+    label: 'Unprotected Safe (no guards yet)',
+    blurb: 'A plain Safe with no guard. Nothing checks transactions, so any 2 owners can do anything. Draft rules, then harden it in one batch.',
     setup: {
       owners: ['Alice', 'Bob', 'Carol'],
       threshold: 2,

@@ -14,13 +14,15 @@ import {
   nameOf,
   ownerNames,
   ruleLine,
+  isZero,
   sameAddress
 } from '../lib/describe.ts'
 import { EMPTY_CONTEXT, emptyStep, stepAsTx, toTxSpec } from '../lib/draft.ts'
 import { pathSupport } from '../lib/content.ts'
 import type { ContextDraft, StepDraft, TxDraft } from '../lib/draft.ts'
 import { plural } from '../lib/format.ts'
-import { guardState } from './Safe.tsx'
+import { ConfigurationsEditor } from './Configurations.tsx'
+import { RuleSpecList, guardState } from './Safe.tsx'
 import { AddressSelect, Button, Callout, Checkbox, CopyText, Field, Glyph, Segmented, Select, TextInput, useEngineer } from './ui.tsx'
 
 // ---------------------------------------------------------------------------------------------
@@ -64,6 +66,7 @@ function defaultArgs(f: FunctionInfo | undefined): string[] {
 function withFn(step: StepDraft, fn: string): StepDraft {
   const info = fnByName(fn)
   const next: StepDraft = { ...step, mode: fn === 'none' ? 'none' : 'fn', fn: fn === 'none' ? '' : fn, args: defaultArgs(info) }
+  if (CONFIG_FNS.includes(fn) && !CONFIG_FNS.includes(step.fn)) next.configurations = []
   if (fn === 'multiSend') next.operation = 'DELEGATECALL'
   else if (step.fn === 'multiSend') next.operation = 'CALL'
   return next
@@ -198,6 +201,7 @@ function StepFields({
   world,
   step,
   onChange,
+  changeSet,
   inBatch = false,
   children
 }: {
@@ -205,6 +209,7 @@ function StepFields({
   world: World
   step: StepDraft
   onChange: (s: StepDraft) => void
+  changeSet: RuleSpec[]
   inBatch?: boolean
   children?: ReactNode
 }) {
@@ -235,6 +240,16 @@ function StepFields({
         </Field>
       </div>
       {step.mode === 'fn' ? <ArgFields id={id} world={world} step={step} onChange={onChange} /> : null}
+      {inBatch && step.mode === 'fn' && CONFIG_FNS.includes(step.fn) ? (
+        <ConfigurationsEditor
+          id={`${id}-cfg`}
+          world={world}
+          fn={step.fn}
+          rules={step.configurations}
+          changeSet={changeSet}
+          onChange={(configurations) => onChange({ ...step, configurations })}
+        />
+      ) : null}
       <div className="field-pair">
         <Field label="Call type">
           <Segmented
@@ -333,7 +348,21 @@ function ContextFields({ id, world, ctx, onChange, inBatch = false }: { id: stri
   )
 }
 
-function BatchBuilder({ id, world, steps, onChange, ownerPath }: { id: string; world: World; steps: StepDraft[]; onChange: (s: StepDraft[]) => void; ownerPath: boolean }) {
+function BatchBuilder({
+  id,
+  world,
+  steps,
+  onChange,
+  ownerPath,
+  changeSet
+}: {
+  id: string
+  world: World
+  steps: StepDraft[]
+  onChange: (s: StepDraft[]) => void
+  ownerPath: boolean
+  changeSet: RuleSpec[]
+}) {
   const set = (i: number, s: StepDraft) => onChange(steps.map((x, j) => (j === i ? s : x)))
   const move = (i: number, d: number) => {
     const j = i + d
@@ -371,7 +400,7 @@ function BatchBuilder({ id, world, steps, onChange, ownerPath }: { id: string; w
                   </Button>
                 </span>
               </div>
-              <StepFields id={`${id}-${i}`} world={world} step={s} onChange={(x) => set(i, x)} inBatch>
+              <StepFields id={`${id}-${i}`} world={world} step={s} onChange={(x) => set(i, x)} changeSet={changeSet} inBatch>
                 {ownerPath ? (
                   <Field label="Extra proof for this step">
                     <ContextFields id={`${id}-${i}-ctx`} world={world} ctx={s.context} onChange={(context) => set(i, { ...s, context })} inBatch />
@@ -389,6 +418,85 @@ function BatchBuilder({ id, world, steps, onChange, ownerPath }: { id: string; w
       </Button>
     </div>
   )
+}
+
+// ---------------------------------------------------------------------------------------------
+// Batch notes: hardening and guard removal
+// ---------------------------------------------------------------------------------------------
+
+export const BATCH_RULE: RuleSpec = { target: 'MultiSend', selector: 'multiSend', operation: 'DELEGATECALL', policy: 'MultiSendPolicy' }
+
+export function hasBatchRule(rules: RuleSpec[]): boolean {
+  return rules.some((r) => r.policy === 'MultiSendPolicy' && r.target === 'MultiSend' && (r.operation ?? 'CALL') === 'DELEGATECALL')
+}
+
+const isFn = (s: StepDraft, ...fns: string[]) => s.mode === 'fn' && fns.includes(s.fn)
+
+function BatchNotes({ world, draft, onChange }: { world: World; draft: TxDraft; onChange: (steps: StepDraft[]) => void }) {
+  const g = guardState(world)
+  const steps = draft.batch
+  const configIdx = steps.findIndex((s) => isFn(s, 'configureImmediately'))
+  const installIdx = steps.findIndex((s) => isFn(s, 'setGuard', 'setModuleGuard') && !isZero(world, s.args[0]))
+  const removes = steps.some((s) => isFn(s, 'setGuard', 'setModuleGuard') && isZero(world, s.args[0]))
+  const applyIdx = steps.findIndex((s) => isFn(s, 'applyConfiguration'))
+  const notes: ReactNode[] = []
+
+  if (g.none && installIdx >= 0) {
+    notes.push(
+      <Callout key="harden" tone="info" title="Hardening in one batch">
+        One batch means there is never a moment with only one guard. No guard exists when it starts, so none of its steps is checked. The rules
+        step must come first: once either guard is set, setting rules immediately fails and undoes the whole batch.
+      </Callout>
+    )
+    if (configIdx > installIdx) {
+      notes.push(
+        <Callout key="order" tone="warning" title="Set the rules before the guards">
+          <div className="stack-sm">
+            <span>Step {configIdx + 1} sets the rules after step {installIdx + 1} installs a guard. It will fail.</span>
+            <span>
+              <Button id="batch-move-rules" size="sm" onClick={() => onChange([steps[configIdx], ...steps.filter((_, i) => i !== configIdx)])}>
+                Move the rules step first
+              </Button>
+            </span>
+          </div>
+        </Callout>
+      )
+    }
+    if (configIdx >= 0 && !hasBatchRule(steps[configIdx].configurations)) {
+      notes.push(
+        <Callout key="batchrule" tone="warning" title="No rule for batches">
+          <div className="stack-sm">
+            <span>Once hardened, every batch needs a rule. Without one, this Safe cannot send batches again.</span>
+            <span>
+              <Button
+                id="batch-add-rule"
+                size="sm"
+                onClick={() => onChange(steps.map((s, i) => (i === configIdx ? { ...s, configurations: [...s.configurations, { ...BATCH_RULE }] } : s)))}
+              >
+                Add the Batch Checker rule to step {configIdx + 1}
+              </Button>
+            </span>
+          </div>
+        </Callout>
+      )
+    }
+  }
+  if (!g.none && removes) {
+    notes.push(
+      <Callout key="remove" tone="info" title="Removing the guards">
+        The guard checks this batch before any step runs, against the rules as they are now. Rules that allow removing the guards must be
+        applied in an earlier transaction.
+      </Callout>
+    )
+  }
+  if (!g.none && applyIdx >= 0 && applyIdx < steps.length - 1) {
+    notes.push(
+      <Callout key="apply" tone="warning" title="Later steps use the old rules">
+        Every step is checked before the batch runs, so the steps after step {applyIdx + 1} are checked against the rules from before it.
+      </Callout>
+    )
+  }
+  return notes.length ? <div className="stack-sm">{notes}</div> : null
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -426,8 +534,8 @@ export function TxBuilder({
   }
   const toggleSigner = (name: string, on: boolean) => set({ signers: on ? [...draft.signers, name] : draft.signers.filter((s) => s !== name) })
   const isConfig = draft.mode === 'fn' && CONFIG_FNS.includes(draft.fn)
-  const usesRoot = isConfig && (draft.fn === 'applyConfiguration' || draft.fn === 'invalidateRoot')
   const roots = Object.keys(world.roots)
+  const rootSource = draft.rootSource === 'own' || roots.includes(draft.rootSource) ? draft.rootSource : 'draft'
   const moduleOptions = world.book.filter((e) => e.kind === 'module')
 
   return (
@@ -498,30 +606,40 @@ export function TxBuilder({
 
       <fieldset className="builder-group">
         <legend className="overline">What it does</legend>
-        <StepFields id="tx" world={world} step={draft} onChange={setStep} />
+        <StepFields id="tx" world={world} step={draft} onChange={setStep} changeSet={changeSet} />
         {isConfig ? (
           <div className="config-source">
-            {usesRoot ? (
-              <Field id="tx-root" label="Change set">
-                <Select
-                  id="tx-root"
-                  value={draft.rootSource}
-                  onChange={(rootSource) => set({ rootSource })}
-                  options={[
-                    ...roots.map((r, i) => ({ value: r, label: `Proposed change set ${i + 1} (${plural(world.roots[r].configurations.length, 'change')})` })),
-                    { value: 'draft', label: `The change set you are drafting (${plural(changeSet.length, 'change')})` }
-                  ]}
-                />
-              </Field>
+            <Field id="tx-root" label="Rules in this call">
+              <Select
+                id="tx-root"
+                value={rootSource}
+                onChange={(v) => set(v === 'own' && draft.rootSource !== 'own' ? { rootSource: v, configurations: structuredClone(spec.call?.configurations ?? []) } : { rootSource: v })}
+                options={[
+                  { value: 'draft', label: `The change set you are drafting (${plural(changeSet.length, 'rule')})` },
+                  ...roots.map((r, i) => ({ value: r, label: `Proposed change set ${i + 1} (${plural(world.roots[r].configurations.length, 'rule')})` })),
+                  { value: 'own', label: 'Rules listed here' }
+                ]}
+              />
+            </Field>
+            {rootSource === 'own' ? (
+              <ConfigurationsEditor
+                id="tx-cfg"
+                world={world}
+                fn={draft.fn}
+                rules={draft.configurations}
+                changeSet={changeSet}
+                onChange={(configurations) => set({ configurations })}
+              />
             ) : (
-              <p className="small">
-                Uses the change set you are drafting in Your Safe: <strong>{plural(changeSet.length, 'change')}</strong>.
-              </p>
+              <RuleSpecList world={world} rules={spec.call?.configurations ?? []} empty="No rules yet. Draft them in Your Safe under Rules." />
             )}
           </div>
         ) : null}
         {draft.mode === 'fn' && draft.fn === 'multiSend' ? (
-          <BatchBuilder id="batch" world={world} steps={draft.batch} onChange={(batch) => set({ batch })} ownerPath={draft.path === 'owner'} />
+          <>
+            <BatchNotes world={world} draft={draft} onChange={(batch) => set({ batch })} />
+            <BatchBuilder id="batch" world={world} steps={draft.batch} onChange={(batch) => set({ batch })} ownerPath={draft.path === 'owner'} changeSet={changeSet} />
+          </>
         ) : null}
       </fieldset>
 

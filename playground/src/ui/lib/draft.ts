@@ -26,6 +26,8 @@ export interface StepDraft {
   operation: OperationName
   data: string
   context: ContextDraft
+  /** Rules for a guard call (configureImmediately, requestConfiguration, applyConfiguration, invalidateRoot). */
+  configurations: RuleSpec[]
 }
 
 export interface TxDraft extends StepDraft {
@@ -35,13 +37,16 @@ export interface TxDraft extends StepDraft {
   safeTxGas: string
   gasPrice: string
   batch: StepDraft[]
-  /** For applyConfiguration / invalidateRoot: 'draft' (the change set being edited) or a pending root. */
+  /**
+   * Where a top-level guard call takes its rules from: 'draft' (the change set being edited, live),
+   * 'own' (`configurations` above) or a pending root (its stored rules).
+   */
   rootSource: string
   label?: string
 }
 
 export function emptyStep(to = 'USDC'): StepDraft {
-  return { to, mode: 'fn', fn: 'transfer', args: ['Dave', '100'], value: '0', operation: 'CALL', data: '', context: { ...EMPTY_CONTEXT } }
+  return { to, mode: 'fn', fn: 'transfer', args: ['Dave', '100'], value: '0', operation: 'CALL', data: '', context: { ...EMPTY_CONTEXT }, configurations: [] }
 }
 
 export function contextFromSpec(c: ContextSpec | undefined): ContextDraft {
@@ -80,7 +85,8 @@ function stepFromSpec(s: SubTxSpec): StepDraft {
     value: s.value ?? '0',
     operation: s.operation ?? 'CALL',
     data: s.data ?? '',
-    context: contextFromSpec(s.context)
+    context: contextFromSpec(s.context),
+    configurations: s.call?.configurations ? structuredClone(s.call.configurations) : []
   }
 }
 
@@ -94,7 +100,7 @@ export function fromTxSpec(world: World, tx: TxSpec): TxDraft {
     safeTxGas: tx.safeTxGas ?? '0',
     gasPrice: tx.gasPrice ?? '0',
     batch: (tx.call?.batch ?? []).map(stepFromSpec),
-    rootSource: 'draft',
+    rootSource: tx.call?.configurations ? 'own' : 'draft',
     label: tx.label
   }
 }
@@ -114,7 +120,10 @@ function stepToSpec(s: StepDraft): SubTxSpec {
   const out: SubTxSpec = { to: s.to }
   if (s.value && s.value !== '0') out.value = s.value.trim()
   if (s.operation !== 'CALL') out.operation = s.operation
-  if (s.mode === 'fn' && s.fn) out.call = { fn: s.fn, args: argsFor(s.fn, s.args) }
+  if (s.mode === 'fn' && s.fn) {
+    out.call = { fn: s.fn, args: argsFor(s.fn, s.args) }
+    if (CONFIG_FNS.includes(s.fn)) out.call = { fn: s.fn, args: [], configurations: s.configurations }
+  }
   if (s.mode === 'raw') out.data = s.data.trim() || '0x'
   const ctx = contextToSpec(s.context)
   if (ctx) out.context = ctx
@@ -136,9 +145,8 @@ export function toTxSpec(world: World, d: TxDraft, changeSet: RuleSpec[]): TxSpe
     if (d.fn === 'multiSend') tx.call.batch = d.batch.map(stepToSpec)
     if (CONFIG_FNS.includes(d.fn)) {
       tx.call.args = []
-      const fromRoot = d.rootSource !== 'draft' ? world.roots[d.rootSource]?.configurations : undefined
-      tx.call.configurations =
-        (d.fn === 'applyConfiguration' || d.fn === 'invalidateRoot') && fromRoot ? fromRoot : changeSet
+      const fromRoot = world.roots[d.rootSource]?.configurations
+      tx.call.configurations = d.rootSource === 'own' ? d.configurations : fromRoot ?? changeSet
     }
   }
   if (d.safeTxGas.trim() && d.safeTxGas.trim() !== '0') tx.safeTxGas = d.safeTxGas.trim()
