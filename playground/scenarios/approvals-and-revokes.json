@@ -1,7 +1,7 @@
 {
   "id": "approvals-and-revokes",
   "chapter": "policies-at-work",
-  "order": 8,
+  "order": 9,
   "title": "Approvals and Revokes",
   "summary": "A spender allowlist approves Dave once, refuses Mallory, and always lets a revoke through.",
   "lesson": "A spender allowlist limits who may be approved to spend the Safe's tokens. Revoking, an approval of zero, is always allowed, so cleaning up never waits for a rule change.",

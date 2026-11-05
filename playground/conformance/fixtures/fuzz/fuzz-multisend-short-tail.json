@@ -1,0 +1,71 @@
+{
+  "id": "fuzz-multisend-short-tail",
+  "chapter": "Harness fixtures (fuzz)",
+  "order": 9135,
+  "title": "MultiSend Ignores A Short Tail",
+  "summary": "ENGINE BUG. MultiSendCallOnly loops while i < length with i starting at 0x20, so a packed tail of 32 bytes or fewer is never executed and the batch succeeds (MultiSendCallOnly.sol multiSend).",
+  "lesson": "Found by differential fuzzing; expectations are the on-chain outcome. Engine: Reverted \"batch data is cut short\" (safe.ts runBatch requires 85 bytes).",
+  "setup": {
+    "balances": {
+      "ETH": "1"
+    },
+    "rules": [
+      {
+        "target": "MultiSend",
+        "selector": "multiSend",
+        "operation": "DELEGATECALL",
+        "policy": "AllowPolicy"
+      },
+      {
+        "fallback": "CALL",
+        "policy": "AllowPolicy"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "delegatecall multiSend with a 1-byte packed batch (0x05)",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "data": "0x8d80ff0a000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000010500000000000000000000000000000000000000000000000000000000000000"
+      },
+      "expect": {
+        "ok": true
+      },
+      "expectState": {
+        "nonce": 1
+      }
+    },
+    {
+      "do": "tx",
+      "label": "CALL multiSend with a 1-byte packed batch (0x05)",
+      "tx": {
+        "to": "MultiSend",
+        "data": "0x8d80ff0a000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000010500000000000000000000000000000000000000000000000000000000000000"
+      },
+      "expect": {
+        "ok": true
+      },
+      "expectState": {
+        "nonce": 2
+      }
+    },
+    {
+      "do": "tx",
+      "label": "one valid step then 32 junk bytes",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "data": "0x8d80ff0a0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000007500000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000000000"
+      },
+      "expect": {
+        "ok": true
+      },
+      "expectState": {
+        "nonce": 3
+      }
+    }
+  ]
+}

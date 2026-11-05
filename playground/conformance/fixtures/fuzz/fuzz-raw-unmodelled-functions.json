@@ -1,0 +1,45 @@
+{
+  "id": "fuzz-raw-unmodelled-functions",
+  "chapter": "Harness fixtures (fuzz)",
+  "order": 9108,
+  "title": "Functions The Engine Lacks",
+  "summary": "ENGINE BUG. Raw calls to functions the engine interfaces lack: SafePolicyGuard.checkAfterExecution(_, false) reverts ExecutionFailed (SafePolicyGuard.sol 239-240); Safe getModulesPaginated with a non-module start reverts GS105 (ModuleManager.sol 204).",
+  "lesson": "Found by differential fuzzing; expectations are the on-chain outcome. Engine: Reverted, and ok (unknown Safe selector treated as the no-handler fallback).",
+  "setup": {
+    "modules": [
+      "AllowanceModule"
+    ],
+    "guards": {
+      "transaction": false,
+      "module": false
+    }
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "PolicyGuard.checkAfterExecution(0, false)",
+      "tx": {
+        "to": "PolicyGuard",
+        "data": "0x9327136800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "ExecutionFailed"
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Safe.getModulesPaginated(0x..02, 10)",
+      "tx": {
+        "to": "Safe",
+        "data": "0xcc2f84520000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000a"
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "GS105"
+      }
+    }
+  ]
+}

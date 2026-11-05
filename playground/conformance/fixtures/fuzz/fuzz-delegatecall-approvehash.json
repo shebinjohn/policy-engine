@@ -1,0 +1,38 @@
+{
+  "id": "fuzz-delegatecall-approvehash",
+  "chapter": "Harness fixtures (fuzz)",
+  "order": 9109,
+  "title": "Delegatecall ApproveHash",
+  "summary": "MODEL LIMIT. Safe code run by DELEGATECALL sees msg.sender = the account that called execTransaction; the harness relays with a non-owner, so approveHash reverts GS030 (Safe.sol 381).",
+  "lesson": "Found by differential fuzzing; expectations are the on-chain outcome. Engine: ok, it assumes the first signer submits (simulate.ts executor = sorted[0]).",
+  "setup": {
+    "owners": [
+      "Alice",
+      "Bob"
+    ],
+    "threshold": 1,
+    "guards": {
+      "transaction": false,
+      "module": false
+    }
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "delegatecall Safe.approveHash(h), signed by Alice, relayed by a non-owner",
+      "tx": {
+        "to": "Safe",
+        "operation": "DELEGATECALL",
+        "data": "0xd4d9bdcd1111111111111111111111111111111111111111111111111111111111111111",
+        "signers": [
+          "Alice"
+        ]
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "GS030"
+      }
+    }
+  ]
+}

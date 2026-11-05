@@ -1,0 +1,51 @@
+{
+  "id": "fuzz-safenet-zero-context",
+  "chapter": "Harness fixtures (fuzz)",
+  "order": 9106,
+  "title": "Safenet Reads Zero Bytes",
+  "summary": "ENGINE BUG. SafenetPolicy checks only the length (SafenetPolicy.sol 113): 256 zero bytes (a batch list of 8 empty items) decode to epoch 0 and key (0,0) and fail isKnown, UntrustedAttestationKey (124).",
+  "lesson": "Found by differential fuzzing; expectations are the on-chain outcome. Engine: MalformedAttestation for any non-attestation context (SafenetPolicy.ts).",
+  "setup": {
+    "balances": {
+      "ETH": "5"
+    },
+    "rules": [
+      {
+        "fallback": "CALL",
+        "policy": "SafenetPolicy"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "eight empty batch items as the context",
+      "tx": {
+        "to": "Dave",
+        "value": "1",
+        "context": {
+          "type": "batch",
+          "items": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "SafenetPolicy",
+        "reason": {
+          "error": "UntrustedAttestationKey"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,98 @@
+{
+  "id": "fuzz-gasprice-starved",
+  "chapter": "Harness fixtures (fuzz)",
+  "order": 9101,
+  "title": "Gas Price Starves The Call",
+  "summary": "ENGINE BUG. With no transaction guard and gasPrice != 0, the inner call gets only safeTxGas gas (Safe.sol 180: gasPrice == 0 ? gasleft() - 2500 : safeTxGas). With safeTxGas 0 a token call runs out of gas: ExecutionFailure, nonce used, refund paid.",
+  "lesson": "Found by differential fuzzing; expectations are the on-chain outcome. Engine: step 0 ok (the transfer happens).",
+  "setup": {
+    "balances": {
+      "ETH": "1",
+      "USDC": "100"
+    },
+    "guards": {
+      "transaction": false,
+      "module": false
+    }
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "USDC transfer with gasPrice 1 and safeTxGas 0 runs out of gas",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Dave",
+            "1"
+          ]
+        },
+        "gasPrice": "1"
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "CallFailed"
+      },
+      "expectState": {
+        "nonce": 1,
+        "balances": {
+          "Dave": {
+            "USDC": "0"
+          },
+          "Safe": {
+            "USDC": "100"
+          }
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "the same transfer with safeTxGas 100000 has gas and succeeds",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Dave",
+            "1"
+          ]
+        },
+        "gasPrice": "1",
+        "safeTxGas": "100000"
+      },
+      "expect": {
+        "ok": true
+      },
+      "expectState": {
+        "nonce": 2,
+        "balances": {
+          "Dave": {
+            "USDC": "1"
+          }
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "a plain ETH send to a person needs no gas, so it succeeds",
+      "tx": {
+        "to": "Dave",
+        "value": "0.5",
+        "gasPrice": "1"
+      },
+      "expect": {
+        "ok": true
+      },
+      "expectState": {
+        "nonce": 3,
+        "balances": {
+          "Dave": {
+            "ETH": "0.5"
+          }
+        }
+      }
+    }
+  ]
+}

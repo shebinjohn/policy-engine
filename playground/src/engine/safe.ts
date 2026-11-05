@@ -6,7 +6,7 @@
  */
 import { ethers } from 'ethers'
 
-import { opName, type Op } from './access.ts'
+import { accessSelector, isFallbackAccess, opName, type Op } from './access.ts'
 import {
   MAX_UINT,
   SENTINEL,
@@ -15,6 +15,7 @@ import {
   eqAddr,
   formatAsset,
   kindOf,
+  policyAt,
   shortLabel,
   symbolOf
 } from './book.ts'
@@ -31,7 +32,7 @@ import {
 } from './catalog.ts'
 import { confirmPolicy } from './engine.ts'
 import { Revert, type Fault } from './errors.ts'
-import { describeCall, E, formatTime, genericMessage, T } from './messages.ts'
+import { describeAccess, describeCall, E, formatTime, genericMessage, policyLabel, T } from './messages.ts'
 import type { Effect, RuleSpec, TraceEvent, TraceStatus, World } from './types.ts'
 
 export interface ExecCall {
@@ -457,7 +458,24 @@ function guardCall(x: ExecCtx, from: string, call: ExecCall, at: Where): void {
 
 function confirmWithEffect(x: ExecCtx, at: Where, c: Parameters<typeof confirmPolicy>[1]): void {
   const local: Effect[] = []
-  confirmPolicy(x.w, c, local)
+  try {
+    confirmPolicy(x.w, c, local)
+  } catch (e) {
+    // Name the policy whose configure refused, and where it was being attached, so the trace
+    // follows the chain: _confirmPolicy -> <Policy>.configure(safe, access, data) -> revert.
+    const policy = policyAt(x.w, c.policy)
+    if (e instanceof Revert && policy && !traced.has(e)) {
+      traced.add(e)
+      const access = accessSelector(c.target, c.selector, c.operation)
+      const where = isFallbackAccess(access) ? T.configureWhereCatchAll(describeAccess(x.w, access)) : describeAccess(x.w, access)
+      event(x, at, 'exec.configure', 'fail', T.configureRefused(policyLabel(policy), where), {
+        actor: 'Policy',
+        detail: e.fault.message ?? genericMessage(e.fault.error),
+        tech: `PolicyEngine._confirmPolicy: access = ${access}; ${policy}.configure(safe, access, data) -> ${revertTech(e.fault)}`
+      })
+    }
+    throw e
+  }
   for (const e of local) effect(x, at, e.kind, e.title, e.tech)
 }
 

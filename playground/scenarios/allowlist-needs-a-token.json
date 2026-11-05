@@ -1,0 +1,173 @@
+{
+  "id": "allowlist-needs-a-token",
+  "chapter": "policies-at-work",
+  "order": 8,
+  "title": "Allowlists Need a Token",
+  "summary": "Try the Recipient Allowlist as the catch-all rule, see exactly where it fails, then attach it to the token.",
+  "lesson": "The Recipient Allowlist learns which token it guards from its rule's target. A catch-all names no token and no function, so the allowlist refuses to be set up there. Attach it to transfer of the token: everything without a rule is already blocked.",
+  "readme": "policies",
+  "setup": {
+    "balances": {
+      "ETH": "5",
+      "USDC": "20000"
+    },
+    "guards": {
+      "transaction": false,
+      "module": false
+    }
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "Set the allowlist as the catch-all rule",
+      "tx": {
+        "to": "PolicyGuard",
+        "call": {
+          "fn": "configureImmediately",
+          "configurations": [
+            {
+              "fallback": "CALL",
+              "policy": "ERC20TransferPolicy",
+              "config": {
+                "recipients": [
+                  {
+                    "account": "Dave",
+                    "permission": "ALWAYS"
+                  }
+                ]
+              },
+              "note": "Dave, always, for any call without its own rule"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "InvalidSelector"
+      },
+      "note": "The rule's settings are only a list of recipients: there is no field for the token. The allowlist takes the token from the rule's target when it is set up, and a catch-all has no target and no function. So its setup refuses with InvalidSelector, the whole transaction reverts, and nothing is configured. Had it been accepted, the list would be filed under no token, and Dave's USDC payment, looked up under USDC, would miss it."
+    },
+    {
+      "do": "tx",
+      "label": "Attach it to USDC transfers and install both guards in one batch",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "PolicyGuard",
+              "call": {
+                "fn": "configureImmediately",
+                "configurations": [
+                  {
+                    "target": "USDC",
+                    "selector": "transfer",
+                    "policy": "ERC20TransferPolicy",
+                    "config": {
+                      "recipients": [
+                        {
+                          "account": "Dave",
+                          "permission": "ALWAYS"
+                        }
+                      ]
+                    },
+                    "note": "USDC goes to Dave only"
+                  }
+                ]
+              }
+            },
+            {
+              "to": "Safe",
+              "call": {
+                "fn": "setModuleGuard",
+                "args": [
+                  "PolicyGuard"
+                ]
+              }
+            },
+            {
+              "to": "Safe",
+              "call": {
+                "fn": "setGuard",
+                "args": [
+                  "PolicyGuard"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "expectState": {
+        "txGuard": "PolicyGuard",
+        "moduleGuard": "PolicyGuard"
+      },
+      "note": "Now the rule names USDC and transfer, so the allowlist files Dave under USDC."
+    },
+    {
+      "do": "tx",
+      "label": "Pay Dave 1500 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Dave",
+            "1500"
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "expectState": {
+        "balances": {
+          "Dave": {
+            "USDC": "1500"
+          }
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Pay Mallory 1500 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Mallory",
+            "1500"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "error": "PolicyReverted",
+        "policy": "ERC20TransferPolicy",
+        "reason": {
+          "error": "Unauthorized"
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Send 1 ETH to Dave",
+      "tx": {
+        "to": "Dave",
+        "value": "1"
+      },
+      "expect": {
+        "ok": false,
+        "error": "AccessDenied",
+        "policy": null
+      },
+      "note": "No rule and no catch-all, so it is denied by default. You never needed a catch-all to block the rest."
+    }
+  ]
+}

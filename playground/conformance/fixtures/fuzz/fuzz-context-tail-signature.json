@@ -1,0 +1,80 @@
+{
+  "id": "fuzz-context-tail-signature",
+  "chapter": "Harness fixtures (fuzz)",
+  "order": 9151,
+  "title": "Signatures Read From Context",
+  "summary": "MODEL LIMIT. With too few owner signatures the Safe (and IncreasedThresholdPolicy) parse the next 65-byte slot from the context bytes: a batch list starting with an attestation gives r = 256, s = epoch 7, v = 0, a contract signature inside the static part, GS021 (Safe.sol 316).",
+  "lesson": "Found by differential fuzzing; expectations are the on-chain outcome. Engine: GS026 (it treats any non-signature context as garbage).",
+  "setup": {
+    "owners": [
+      "Alice",
+      "Bob"
+    ],
+    "threshold": 1,
+    "balances": {
+      "ETH": "5"
+    },
+    "rules": [
+      {
+        "fallback": "CALL",
+        "policy": "IncreasedThresholdPolicy"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "no owner signature, context = [attestation]",
+      "tx": {
+        "to": "Dave",
+        "value": "1",
+        "signers": [],
+        "context": {
+          "type": "batch",
+          "items": [
+            {
+              "type": "attestation",
+              "key": "trusted",
+              "valid": true
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "safe",
+        "error": "GS021"
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Alice signs, IncreasedThresholdPolicy needs 2 from the same context",
+      "tx": {
+        "to": "Dave",
+        "value": "1",
+        "signers": [
+          "Alice"
+        ],
+        "context": {
+          "type": "batch",
+          "items": [
+            {
+              "type": "attestation",
+              "key": "trusted",
+              "valid": true
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "IncreasedThresholdPolicy",
+        "reason": {
+          "error": "GS021"
+        }
+      }
+    }
+  ]
+}

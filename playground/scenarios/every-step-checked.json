@@ -1,7 +1,7 @@
 {
   "id": "every-step-checked",
   "chapter": "batches",
-  "order": 11,
+  "order": 12,
   "title": "Every Step Is Checked",
   "summary": "A payroll batch passes only if the batch has a rule and every step inside it passes its own.",
   "lesson": "A batch needs two kinds of rules: one that opens the batch, and one for every step inside it. If any step is refused, nothing in the batch runs.",

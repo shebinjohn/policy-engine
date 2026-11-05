@@ -1,7 +1,7 @@
 {
   "id": "one-guard-is-no-guard",
   "chapter": "modules-and-guards",
-  "order": 17,
+  "order": 18,
   "title": "Half a Guard",
   "summary": "The transaction guard goes in first and the module guard is then refused. Meanwhile a module ignores every rule and removes the guard.",
   "lesson": "Install both guards in one batch, or the module guard first. Once the transaction guard is in, adding the module guard is a checked call that needs a rule. Until it is in, any enabled module skips every rule, and can even switch the guard off without a wait.",

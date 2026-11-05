@@ -1,7 +1,7 @@
 {
   "id": "requests-expire",
   "chapter": "changing-the-rules",
-  "order": 21,
+  "order": 22,
   "title": "Requests Expire",
   "summary": "A change that is not applied within seven days of becoming ready can no longer be applied.",
   "lesson": "A requested change can be applied from one hour after the request, for seven days. After that it is dead, so an old request cannot be sprung on the team. Ask again to start over.",

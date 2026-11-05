@@ -1,7 +1,7 @@
 {
   "id": "plain-eth-transfers",
   "chapter": "policies-at-work",
-  "order": 9,
+  "order": 10,
   "title": "Plain ETH and Selector Zero",
   "summary": "The plain ETH policy tells a real ETH transfer from calldata of four zero bytes. Always Allow cannot.",
   "lesson": "Empty calldata and calldata of four zero bytes land on the same rule. Only the plain ETH policy checks that the calldata is really empty, so use it for ETH transfers.",

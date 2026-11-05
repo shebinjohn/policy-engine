@@ -1,7 +1,7 @@
 {
   "id": "harden-in-one-batch",
   "chapter": "modules-and-guards",
-  "order": 16,
+  "order": 17,
   "title": "Harden in One Batch",
   "summary": "One batch sets the rules and installs both guards. In the wrong order the whole batch fails; in the right order every path is checked from then on.",
   "lesson": "Harden a Safe with one batch: set the rules first, then install both guards. One batch leaves no moment with only one guard in place, and the rules must come first because instant rule changes stop working once either guard is in.",

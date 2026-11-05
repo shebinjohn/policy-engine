@@ -1,7 +1,7 @@
 {
   "id": "batch-sees-old-state",
   "chapter": "batches",
-  "order": 13,
+  "order": 14,
   "title": "Batches See the Old Safe",
   "summary": "A batch raises the threshold and makes a payment. The payment is checked against the old threshold.",
   "lesson": "Every step of a batch is checked before any of them runs, against the Safe as it was before the batch. Change the threshold or the owners in a transaction of their own.",

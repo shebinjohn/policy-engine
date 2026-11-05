@@ -1,0 +1,103 @@
+{
+  "id": "fuzz-max-amount",
+  "chapter": "Harness fixtures (fuzz)",
+  "order": 9130,
+  "title": "Unlimited Amounts",
+  "summary": "HARNESS BUG (fixed). The engine reads the amount \"max\" / \"unlimited\" as type(uint256).max (book.ts parseAmount); the harness threw in ethers.parseUnits. Fixed in world.ts toUnits.",
+  "lesson": "Found by differential fuzzing; expectations are the on-chain outcome. Engine and chain now agree on every step.",
+  "setup": {
+    "balances": {
+      "USDC": "100"
+    },
+    "rules": [
+      {
+        "target": "USDC",
+        "selector": "approve",
+        "policy": "ERC20ApprovePolicy",
+        "config": {
+          "spenders": [
+            {
+              "account": "Dave",
+              "permission": "ONCE"
+            }
+          ]
+        }
+      },
+      {
+        "target": "USDC",
+        "selector": "transferFrom",
+        "policy": "AllowPolicy"
+      }
+    ],
+    "allowances": [
+      {
+        "token": "USDC",
+        "owner": "Erin",
+        "spender": "Safe",
+        "amount": "max"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "approve(Dave, max) uses the ONCE permission",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "approve",
+          "args": [
+            "Dave",
+            "max"
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "do": "tx",
+      "label": "approve(Dave, max) again: the permission is spent",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "approve",
+          "args": [
+            "Dave",
+            "max"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "ERC20ApprovePolicy",
+        "reason": {
+          "error": "Unauthorized"
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "transferFrom(Erin, Dave, 1) with an unlimited allowance but no balance",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transferFrom",
+          "args": [
+            "Erin",
+            "Dave",
+            "1"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "ERC20InsufficientBalance"
+      }
+    }
+  ]
+}

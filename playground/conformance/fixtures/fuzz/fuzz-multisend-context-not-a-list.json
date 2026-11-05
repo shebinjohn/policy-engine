@@ -1,0 +1,197 @@
+{
+  "id": "fuzz-multisend-context-not-a-list",
+  "chapter": "Harness fixtures (fuzz)",
+  "order": 9102,
+  "title": "Batch Context Not A List",
+  "summary": "ENGINE BUG. MultiSendPolicy._decodeNextContext (MultiSendPolicy.sol 78-90) reads any context as its positional list: empty bytes (ownerSignatures with no signers) are an empty list, and an attestation starts with its epoch word (7 here), read as a 7-byte first item.",
+  "lesson": "Found by differential fuzzing; expectations are the on-chain outcome. Engine: PolicyReverted(MultiSendPolicy, Reverted) for every non-batch context (MultiSendPolicy.ts contextAt).",
+  "setup": {
+    "balances": {
+      "ETH": "5"
+    },
+    "rules": [
+      {
+        "target": "MultiSend",
+        "selector": "multiSend",
+        "operation": "DELEGATECALL",
+        "policy": "MultiSendPolicy"
+      },
+      {
+        "fallback": "CALL",
+        "policy": "AllowPolicy"
+      },
+      {
+        "target": "Erin",
+        "selector": "none",
+        "policy": "SafenetPolicy"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "empty ownerSignatures context on a batch: an empty list, the batch passes",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "Dave",
+              "value": "1"
+            }
+          ]
+        },
+        "context": {
+          "type": "ownerSignatures",
+          "signers": []
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "expectState": {
+        "balances": {
+          "Dave": {
+            "ETH": "1"
+          }
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "attestation context on a one-step batch: the step gets the first 7 bytes, AllowPolicy passes",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "Dave",
+              "value": "1"
+            }
+          ]
+        },
+        "context": {
+          "type": "attestation",
+          "key": "trusted",
+          "valid": true
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "expectState": {
+        "balances": {
+          "Dave": {
+            "ETH": "2"
+          }
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "the 7-byte item reaches SafenetPolicy (on Erin) as its context",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "Erin",
+              "value": "1"
+            }
+          ]
+        },
+        "context": {
+          "type": "attestation",
+          "key": "trusted",
+          "valid": true
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "MultiSendPolicy",
+        "reason": {
+          "error": "PolicyReverted",
+          "policy": "SafenetPolicy",
+          "reason": {
+            "error": "MalformedAttestation"
+          }
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "attestation context on a two-step batch: the second length word runs past the end",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "Dave",
+              "value": "1"
+            },
+            {
+              "to": "Dave",
+              "value": "1"
+            }
+          ]
+        },
+        "context": {
+          "type": "attestation",
+          "key": "trusted",
+          "valid": true
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "MultiSendPolicy",
+        "reason": {
+          "error": "Reverted"
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "a one-signer ownerSignatures context (65 bytes): its r word is no valid length",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "Dave",
+              "value": "1"
+            }
+          ]
+        },
+        "context": {
+          "type": "ownerSignatures",
+          "signers": [
+            "Alice"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "MultiSendPolicy",
+        "reason": {
+          "error": "Reverted"
+        }
+      }
+    }
+  ]
+}

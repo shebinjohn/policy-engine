@@ -1,7 +1,7 @@
 {
   "id": "co-sign-each-step",
   "chapter": "batches",
-  "order": 14,
+  "order": 15,
   "title": "Co-Sign Each Step",
   "summary": "Under a batch the co-signer signs every step. A signature over the whole batch, or one used twice, is refused.",
   "lesson": "In a batch, the co-signer signs each step, not the batch. Each signature works once, so the same co-signed step cannot appear twice in one batch.",

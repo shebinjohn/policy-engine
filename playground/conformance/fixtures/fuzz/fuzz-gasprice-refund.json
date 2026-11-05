@@ -1,0 +1,36 @@
+{
+  "id": "fuzz-gasprice-refund",
+  "chapter": "Harness fixtures (fuzz)",
+  "order": 9100,
+  "title": "Gas Price Without Guard",
+  "summary": "ENGINE BUG. With no transaction guard and gasPrice != 0, Safe 1.5.0 refunds gas from the Safe to tx.origin after the call (Safe.sol 196-198, handlePayment 229-230); with no ETH the refund fails and the whole transaction reverts GS011, nonce unused.",
+  "lesson": "Found by differential fuzzing; expectations are the on-chain outcome. Engine: ok, nonce used (it only models safeTxGas, simulate.ts swallow).",
+  "setup": {
+    "balances": {
+      "USDC": "100"
+    },
+    "guards": {
+      "transaction": false,
+      "module": false
+    }
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "gasPrice 1, no ETH in the Safe: the gas refund fails, GS011",
+      "tx": {
+        "to": "Dave",
+        "value": "0",
+        "gasPrice": "1"
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "GS011"
+      },
+      "expectState": {
+        "nonce": 0
+      }
+    }
+  ]
+}

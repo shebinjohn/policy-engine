@@ -293,7 +293,8 @@ declarative, no emoji, no em dashes; write identifiers exactly as the code does 
 Event ids are stable codes so the UI can draw the pipeline: `safe.signatures`, `safe.nonce`,
 `safe.noGuard`, `safe.module` (module enabled check), `safe.context` (context ignored on the module path), `guard.gasPrice`, `guard.safeTxGas`, `engine.allowedCall`, `engine.guardTarget`,
 `engine.selector`, `engine.lookup.exact`, `engine.lookup.fallback`, `engine.lookup.none`,
-`policy.check`, `policy.state`, `multisend.step`, `exec.call`, `exec.effect`, `exec.revert`,
+`policy.check`, `policy.state`, `multisend.step`, `exec.call`, `exec.effect`, `exec.configure` (a
+policy's `configure` refused a rule while setting it up), `exec.revert`,
 `guard.after`, `commit`, `rollback`.
 
 ## 12. Scenario and challenge files

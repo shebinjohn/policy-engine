@@ -1,0 +1,79 @@
+{
+  "id": "fuzz-signer-address-order",
+  "chapter": "Harness fixtures (fuzz)",
+  "order": 9150,
+  "title": "Signer Order Is Address Order",
+  "summary": "MODEL LIMIT. The Safe checks the first threshold signatures in address order (Safe.sol 338); playground and harness addresses differ (chain: Carol < Erin < Dave < Alice < CoSigner < Bob < Mallory), so extra or context-tail signers fall differently.",
+  "lesson": "Found by differential fuzzing; expectations are the on-chain outcome. Engine: GS026, GS026, ok.",
+  "setup": {
+    "balances": {
+      "ETH": "5"
+    },
+    "rules": [
+      {
+        "fallback": "CALL",
+        "policy": "AllowPolicy"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "Alice, Carol and Mallory sign (threshold 2): on chain Carol < Alice < Mallory, so Mallory is not checked",
+      "tx": {
+        "to": "Dave",
+        "value": "1",
+        "signers": [
+          "Alice",
+          "Carol",
+          "Mallory"
+        ]
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Carol signs, Alice is read from the context tail: on chain Alice > Carol, so the pair is in order",
+      "tx": {
+        "to": "Dave",
+        "value": "1",
+        "signers": [
+          "Carol"
+        ],
+        "context": {
+          "type": "ownerSignatures",
+          "signers": [
+            "Alice"
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Alice signs, Carol is read from the context tail: on chain Carol < Alice, out of order",
+      "tx": {
+        "to": "Dave",
+        "value": "1",
+        "signers": [
+          "Alice"
+        ],
+        "context": {
+          "type": "ownerSignatures",
+          "signers": [
+            "Carol"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "safe",
+        "error": "GS026"
+      }
+    }
+  ]
+}

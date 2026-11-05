@@ -1,0 +1,102 @@
+{
+  "id": "fuzz-dirty-address-calldata",
+  "chapter": "Harness fixtures (fuzz)",
+  "order": 9120,
+  "title": "Dirty Address In Calldata",
+  "summary": "ENGINE BUG (crash). transfer calldata whose address word has its upper bytes set: Solidity ABI decoding rejects it in ERC20TransferPolicy and the token; a codeless target ignores it.",
+  "lesson": "Found by differential fuzzing; expectations are the on-chain outcome. Engine: simulate throws an uncaught ethers \"deferred error during ABI decoding\" (messages.ts describeCall, and safe.ts decodeOrRevert), since ethers v6 defers decode errors to element access.",
+  "setup": {
+    "balances": {
+      "ETH": "1",
+      "USDC": "100"
+    },
+    "rules": [
+      {
+        "target": "USDC",
+        "selector": "transfer",
+        "policy": "ERC20TransferPolicy",
+        "config": {
+          "recipients": [
+            {
+              "account": "Dave",
+              "permission": "ALWAYS"
+            }
+          ]
+        }
+      },
+      {
+        "fallback": "CALL",
+        "policy": "AllowPolicy"
+      },
+      {
+        "target": "MultiSend",
+        "selector": "multiSend",
+        "operation": "DELEGATECALL",
+        "policy": "MultiSendPolicy"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "ERC20TransferPolicy cannot decode the recipient",
+      "tx": {
+        "to": "USDC",
+        "data": "0xa9059cbbffffffffffffffffffffffffda7eda7eda7eda7eda7eda7eda7eda7eda7eda7e0000000000000000000000000000000000000000000000000000000000000001"
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "ERC20TransferPolicy",
+        "reason": {
+          "error": "Reverted"
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "the same bytes to SAFE pass AllowPolicy, then the token cannot decode them",
+      "tx": {
+        "to": "SAFE",
+        "data": "0xa9059cbbffffffffffffffffffffffffda7eda7eda7eda7eda7eda7eda7eda7eda7eda7e0000000000000000000000000000000000000000000000000000000000000001"
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "Reverted"
+      }
+    },
+    {
+      "do": "tx",
+      "label": "the same bytes to Dave: no code, nothing decodes them",
+      "tx": {
+        "to": "Dave",
+        "data": "0xa9059cbbffffffffffffffffffffffffda7eda7eda7eda7eda7eda7eda7eda7eda7eda7e0000000000000000000000000000000000000000000000000000000000000001"
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "do": "tx",
+      "label": "the same bytes to Dave inside a batch",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "Dave",
+              "data": "0xa9059cbbffffffffffffffffffffffffda7eda7eda7eda7eda7eda7eda7eda7eda7eda7e0000000000000000000000000000000000000000000000000000000000000001"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      }
+    }
+  ]
+}

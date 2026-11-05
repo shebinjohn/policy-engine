@@ -460,6 +460,8 @@ export const T = {
   execMultiSendCallDetail:
     'Called without delegatecall, MultiSend acts for itself. The steps cannot spend the Safe funds or change its settings.',
   execRevert: (who: string) => `${who} refused the call`,
+  configureRefused: (policy: string, where: string) => `${policy} refused to be attached to ${where}`,
+  configureWhereCatchAll: (what: string) => `the catch-all rule (${what})`,
   execStepDelegate: 'MultiSend (call only) refuses a delegatecall inside a batch',
   afterOk: 'The guard confirms the call succeeded',
   afterModuleFail: 'The module call failed, so the guard reverts everything',

@@ -1,0 +1,56 @@
+{
+  "id": "fuzz-multisend-short-op",
+  "chapter": "Harness fixtures (fuzz)",
+  "order": 9107,
+  "title": "Short Batch Bad Operation",
+  "summary": "ENGINE BUG. MultiSendPolicy._decodeNextTransaction converts the operation byte first (MultiSendPolicy.sol 66): a short packed batch whose first byte is 2 panics 0x21 before any bounds check.",
+  "lesson": "Found by differential fuzzing; expectations are the on-chain outcome. Engine: Reverted (MultiSendPolicy.ts nextTransaction checks the 85-byte length first).",
+  "setup": {
+    "rules": [
+      {
+        "target": "MultiSend",
+        "selector": "multiSend",
+        "operation": "DELEGATECALL",
+        "policy": "MultiSendPolicy"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "packed batch 0x02",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "data": "0x8d80ff0a000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000010200000000000000000000000000000000000000000000000000000000000000"
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "MultiSendPolicy",
+        "reason": {
+          "error": "Panic"
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "packed batch 0x00",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "data": "0x8d80ff0a000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "MultiSendPolicy",
+        "reason": {
+          "error": "Reverted"
+        }
+      }
+    }
+  ]
+}

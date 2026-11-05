@@ -1,0 +1,61 @@
+{
+  "id": "fuzz-transferfrom-zero",
+  "chapter": "Harness fixtures (fuzz)",
+  "order": 9105,
+  "title": "TransferFrom The Zero Address",
+  "summary": "ENGINE BUG. OpenZeppelin 5.3 transferFrom spends the allowance before moving tokens; from = 0x0 with amount 0 passes the allowance check and reaches _approve(0x0, ...), which reverts ERC20InvalidApprover (ERC20.sol 300-307, 281).",
+  "lesson": "Found by differential fuzzing; expectations are the on-chain outcome. Engine: ERC20InvalidSender (safe.ts tokenCall skips _approve).",
+  "setup": {
+    "balances": {
+      "USDC": "100"
+    },
+    "rules": [
+      {
+        "fallback": "CALL",
+        "policy": "AllowPolicy"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "transferFrom(Zero, Dave, 0)",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transferFrom",
+          "args": [
+            "Zero",
+            "Dave",
+            "0"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "ERC20InvalidApprover"
+      }
+    },
+    {
+      "do": "tx",
+      "label": "transferFrom(Zero, Dave, 1)",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transferFrom",
+          "args": [
+            "Zero",
+            "Dave",
+            "1"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "ERC20InsufficientAllowance"
+      }
+    }
+  ]
+}

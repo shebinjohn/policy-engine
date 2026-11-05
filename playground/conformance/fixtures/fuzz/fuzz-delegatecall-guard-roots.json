@@ -1,0 +1,176 @@
+{
+  "id": "fuzz-delegatecall-guard-roots",
+  "chapter": "Harness fixtures (fuzz)",
+  "order": 9103,
+  "title": "Delegatecall Into The Guard",
+  "summary": "ENGINE BUG. A DELEGATECALL to the PolicyGuard runs requestConfiguration / invalidateRoot / applyConfiguration on the Safe storage with msg.sender = the executor (SafePolicyGuard.sol 362-366, 378, 391): roots persist there per executor.",
+  "lesson": "Found by differential fuzzing; expectations are the on-chain outcome. Engine: request always ok, invalidate and apply always RootNotConfigured (safe.ts delegateOther, guard case).",
+  "setup": {
+    "modules": [
+      "AllowanceModule"
+    ],
+    "guards": {
+      "transaction": false,
+      "module": false
+    }
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "owner delegatecall requestConfiguration(X)",
+      "tx": {
+        "to": "PolicyGuard",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "requestConfiguration",
+          "configurations": [
+            {
+              "fallback": "CALL",
+              "policy": "AllowPolicy"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "do": "tx",
+      "label": "the same request again: X is already pending in the Safe storage",
+      "tx": {
+        "to": "PolicyGuard",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "requestConfiguration",
+          "configurations": [
+            {
+              "fallback": "CALL",
+              "policy": "AllowPolicy"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "RootAlreadyConfigured"
+      }
+    },
+    {
+      "do": "tx",
+      "label": "module delegatecall requestConfiguration(X): another executor, another key",
+      "tx": {
+        "path": "module",
+        "module": "AllowanceModule",
+        "to": "PolicyGuard",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "requestConfiguration",
+          "configurations": [
+            {
+              "fallback": "CALL",
+              "policy": "AllowPolicy"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "do": "tx",
+      "label": "module repeats it: the Safe returns false",
+      "tx": {
+        "path": "module",
+        "module": "AllowanceModule",
+        "to": "PolicyGuard",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "requestConfiguration",
+          "configurations": [
+            {
+              "fallback": "CALL",
+              "policy": "AllowPolicy"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "CallFailed"
+      }
+    },
+    {
+      "do": "tx",
+      "label": "owner delegatecall invalidateRoot(X) finds it and deletes it",
+      "tx": {
+        "to": "PolicyGuard",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "invalidateRoot",
+          "configurations": [
+            {
+              "fallback": "CALL",
+              "policy": "AllowPolicy"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "do": "tx",
+      "label": "owner requests X again",
+      "tx": {
+        "to": "PolicyGuard",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "requestConfiguration",
+          "configurations": [
+            {
+              "fallback": "CALL",
+              "policy": "AllowPolicy"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "do": "wait",
+      "label": "wait 3600s",
+      "seconds": 3600
+    },
+    {
+      "do": "tx",
+      "label": "owner delegatecall applyConfiguration(X) after the delay",
+      "tx": {
+        "to": "PolicyGuard",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "applyConfiguration",
+          "configurations": [
+            {
+              "fallback": "CALL",
+              "policy": "AllowPolicy"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "expectState": {
+        "txGuard": null,
+        "moduleGuard": null
+      }
+    }
+  ]
+}

@@ -57,6 +57,8 @@ function discover(): Entry[] {
   for (const file of readDir(path.join(PLAYGROUND, 'scenarios'))) load(file, 'scenarios', 'scenario')
   for (const file of readDir(path.join(PLAYGROUND, 'challenges'))) load(file, 'challenges', 'challenge')
   for (const file of readDir(path.join(__dirname, 'fixtures'))) load(file, 'fixtures')
+  // Minimal reproducers found by differential fuzzing (engine vs chain), pinned with the chain outcome.
+  for (const file of readDir(path.join(__dirname, 'fixtures', 'fuzz'))) load(file, 'fixtures')
   for (const dir of (process.env.CONFORMANCE_EXTRA ?? '').split(path.delimiter).filter(Boolean)) {
     for (const file of readDir(path.resolve(dir))) load(file, 'extra')
   }

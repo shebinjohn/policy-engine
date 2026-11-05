@@ -1,7 +1,7 @@
 {
   "id": "failed-batch-keeps-grant",
   "chapter": "batches",
-  "order": 12,
+  "order": 13,
   "title": "A Failed Batch Spends Nothing",
   "summary": "A batch uses a one-time grant and then fails. The grant comes back with everything else.",
   "lesson": "Checks and execution succeed or fail together. If a batch fails after passing its checks, everything is undone, including a one-time grant it used.",

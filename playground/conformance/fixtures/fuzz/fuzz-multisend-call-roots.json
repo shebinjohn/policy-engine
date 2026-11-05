@@ -1,0 +1,201 @@
+{
+  "id": "fuzz-multisend-call-roots",
+  "chapter": "Harness fixtures (fuzz)",
+  "order": 9104,
+  "title": "Guard Calls From MultiSend",
+  "summary": "ENGINE BUG. When MultiSend is CALLed, it is msg.sender at the guard, and rootConfigured[MultiSend][root] persists (SafePolicyGuard.sol 362-366, 378, 391): a repeat request collides, and its own roots can be invalidated and applied.",
+  "lesson": "Found by differential fuzzing; expectations are the on-chain outcome. Engine: non-Safe requests are a no-op, invalidate and apply always RootNotConfigured (safe.ts guardCall !fromSafe).",
+  "setup": {
+    "rules": [
+      {
+        "fallback": "CALL",
+        "policy": "AllowPolicy"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "MultiSend (CALL) requests X twice in one batch",
+      "tx": {
+        "to": "MultiSend",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "PolicyGuard",
+              "call": {
+                "fn": "requestConfiguration",
+                "configurations": [
+                  {
+                    "fallback": "CALL",
+                    "policy": "AllowPolicy"
+                  }
+                ]
+              }
+            },
+            {
+              "to": "PolicyGuard",
+              "call": {
+                "fn": "requestConfiguration",
+                "configurations": [
+                  {
+                    "fallback": "CALL",
+                    "policy": "AllowPolicy"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "RootAlreadyConfigured"
+      }
+    },
+    {
+      "do": "tx",
+      "label": "MultiSend (CALL) requests X once",
+      "tx": {
+        "to": "MultiSend",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "PolicyGuard",
+              "call": {
+                "fn": "requestConfiguration",
+                "configurations": [
+                  {
+                    "fallback": "CALL",
+                    "policy": "AllowPolicy"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "do": "tx",
+      "label": "and again in a later transaction",
+      "tx": {
+        "to": "MultiSend",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "PolicyGuard",
+              "call": {
+                "fn": "requestConfiguration",
+                "configurations": [
+                  {
+                    "fallback": "CALL",
+                    "policy": "AllowPolicy"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "RootAlreadyConfigured"
+      }
+    },
+    {
+      "do": "tx",
+      "label": "MultiSend (CALL) invalidates its own X",
+      "tx": {
+        "to": "MultiSend",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "PolicyGuard",
+              "call": {
+                "fn": "invalidateRoot",
+                "configurations": [
+                  {
+                    "fallback": "CALL",
+                    "policy": "AllowPolicy"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "do": "tx",
+      "label": "MultiSend (CALL) requests X again",
+      "tx": {
+        "to": "MultiSend",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "PolicyGuard",
+              "call": {
+                "fn": "requestConfiguration",
+                "configurations": [
+                  {
+                    "fallback": "CALL",
+                    "policy": "AllowPolicy"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "do": "wait",
+      "label": "wait 3600s",
+      "seconds": 3600
+    },
+    {
+      "do": "tx",
+      "label": "MultiSend (CALL) applies X to its own namespace",
+      "tx": {
+        "to": "MultiSend",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "PolicyGuard",
+              "call": {
+                "fn": "applyConfiguration",
+                "configurations": [
+                  {
+                    "fallback": "CALL",
+                    "policy": "AllowPolicy"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      }
+    }
+  ]
+}
