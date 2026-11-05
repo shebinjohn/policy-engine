@@ -96,8 +96,7 @@ with the setup's `delay` and `expiry` (default 3600 and 604800). Then follow SPE
    relayer and transferring it. Allowances are written straight into the token's allowance storage
    slot and read back to check them. This works for any owner, including people with no ETH.
 4. Run `configureImmediately(rules)` as a Safe transaction to the guard.
-5. Install the guards. **The module guard goes first.** SPEC §3 lists `setGuard` then
-   `setModuleGuard`, but once the transaction guard is on, the `setModuleGuard` transaction is
+5. Install the guards. **The module guard goes first** (SPEC §3): once the transaction guard is on, the `setModuleGuard` transaction is
    checked by the rules like any other call and is denied without a matching rule (pinned in
    `fixture-module-no-guard`). The final state is the same.
 
@@ -274,9 +273,10 @@ npm run conformance
   into `ABI_SOURCES` in `decode.ts`.
 - `artifacts/WETH9.json` changes only with `contracts/WETH9.sol`: `node conformance/scripts/build-weth.cjs`.
 
-## Where the chain contradicts SPEC.md
+## Corrections the chain made to SPEC.md
 
-These are pinned in the fixtures, quoted from the observed reverts:
+The first runs contradicted SPEC.md in the places below. SPEC.md has since been corrected to match
+the chain, and the fixtures keep pinning each one, quoted from the observed reverts:
 
 1. **SPEC §8, Safenet `valid: false`.** SPEC names the reason `InvalidSignature`. On chain it is
    `PolicyReverted(SafenetPolicy, InvalidMulMulAddWitness())`, raised by

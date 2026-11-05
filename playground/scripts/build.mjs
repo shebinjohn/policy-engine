@@ -172,24 +172,50 @@ async function main() {
   if (process.argv.includes('--gen-only')) return
 
   const [js, css] = await Promise.all([bundle(), styles()])
-  const html = [
+  const head = [
     `<title>${TITLE}</title>`,
     '<meta name="claude:viewport-fit-sides" content="cover">',
     '<meta name="description" content="Set up a Safe with the Policy Engine, run a transaction and see step by step why it passes or is blocked.">',
     '<link rel="preconnect" href="https://fonts.googleapis.com">',
     '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>',
     `<link rel="stylesheet" href="${FONTS}">`,
-    `<style>\n${css}\n</style>`,
+    `<style>\n${css}\n</style>`
+  ]
+  const body = [
     '<div id="root"><p class="boot">Loading the Policy Engine Playground.</p></div>',
     ...CDN.map((src) => `<script src="${src}" crossorigin="anonymous"></script>`),
-    `<script>\n${escapeInline(guarded(js))}\n</script>`,
-    ''
-  ].join('\n')
+    `<script>\n${escapeInline(guarded(js))}\n</script>`
+  ]
 
   await mkdir(rel('dist'), { recursive: true })
+
+  // 1. Claude artifact page: no <!doctype>, <html>, <head> or <body>; the artifact host wraps it.
+  const artifact = [...head, ...body, ''].join('\n')
   const out = rel('dist/policy-playground.html')
-  await writeFile(out, html)
-  console.log(`wrote ${path.relative(process.cwd(), out)} (${(html.length / 1024).toFixed(1)} KB)`)
+  await writeFile(out, artifact)
+  console.log(`wrote ${path.relative(process.cwd(), out)} (${(artifact.length / 1024).toFixed(1)} KB)`)
+
+  // 2. Standalone page for any static host (GitHub Pages, a website). It carries the same small
+  //    reset the artifact host adds: safe-area padding, zero body margin, [hidden] support.
+  const standalone = [
+    '<!doctype html>',
+    '<html lang="en">',
+    '<head>',
+    '<meta charset="utf-8">',
+    '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">',
+    '<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px/1.4 system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>',
+    ...head,
+    '</head>',
+    '<body>',
+    ...body,
+    '</body>',
+    '</html>',
+    ''
+  ].join('\n')
+  const site = rel('dist/site/index.html')
+  await mkdir(path.dirname(site), { recursive: true })
+  await writeFile(site, standalone)
+  console.log(`wrote ${path.relative(process.cwd(), site)} (static hosting)`)
 }
 
 main().catch((err) => {
