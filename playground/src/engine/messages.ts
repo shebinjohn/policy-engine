@@ -14,7 +14,7 @@ import {
   kindOf,
   shortLabel
 } from './book.ts'
-import { catalogBySelector } from './catalog.ts'
+import { catalogBySelector, decodeStrict } from './catalog.ts'
 import type { Fault } from './errors.ts'
 import type { ErrorSource, PolicyName, World } from './types.ts'
 
@@ -103,12 +103,10 @@ export function describeCall(w: World | null, to: string, value: bigint, data: s
   if (!entry) {
     return op === 1 ? `Delegatecall into ${t} with an unknown function` : `Call ${t} with an unknown function${withEth}`
   }
-  let args: ethers.Result
-  try {
-    args = entry.iface.decodeFunctionData(entry.name, data)
-  } catch {
-    return `Call ${entry.name} on ${t} with unreadable data${withEth}`
-  }
+  const fragment = entry.iface.getFunction(entry.name)!
+  const decoded = decodeStrict(entry.iface, fragment, data)
+  if (!decoded) return `Call ${entry.name} on ${t} with unreadable data${withEth}`
+  const args: ethers.Result = decoded
   const dc = op === 1 ? 'Delegatecall: ' : ''
   const amount = (raw: unknown) => formatAsset(w, to, BigInt(raw as bigint))
   const who = (raw: unknown) => shortLabel(w, String(raw))
@@ -426,6 +424,8 @@ export const T = {
   cosignModule: `${L.CoSignerPolicy}: module transactions cannot carry a co-signature`,
   cosignNone: `${L.CoSignerPolicy}: no co-signer is set for this rule`,
   cosignMissing: (who: string) => `${L.CoSignerPolicy}: no co-signature from ${who}`,
+  cosignNotSignature: `${L.CoSignerPolicy}: the attached context is not a co-signature`,
+  cosignOtherTx: (signer: string) => `${L.CoSignerPolicy}: ${signer} signed a different transaction`,
   cosignWrongSigner: (who: string, signer: string) => `${L.CoSignerPolicy}: signed by ${signer}, not ${who}`,
   cosignOverBatch: (who: string) => `${L.CoSignerPolicy}: ${who} signed the whole batch, not this step`,
   cosignOverBatchDetail: 'In a batch each step needs a co-signature over its own transaction, not over the batch.',
@@ -438,6 +438,7 @@ export const T = {
   thresholdBad: (who: string) => `${L.IncreasedThresholdPolicy}: ${who} is not an owner or signed twice`,
   thresholdNeedDetail: (need: number, owners: number, threshold: number) =>
     `This rule needs ${need} of ${owners} owners, more than the Safe threshold of ${threshold}.`,
+  thresholdUnreadable: `${L.IncreasedThresholdPolicy}: the context holds no valid owner signatures`,
   thresholdSpent: `${L.IncreasedThresholdPolicy}: these signatures were already used`,
   thresholdSpentDetail: 'A batch cannot repeat an identical step checked by signatures. Vary it, or split it.',
   thresholdPass: (got: number, owners: number) => `${L.IncreasedThresholdPolicy}: ${got} of ${owners} owners signed`,
@@ -445,6 +446,8 @@ export const T = {
   safenetModule: `${L.SafenetPolicy}: module transactions carry no attestation`,
   safenetMalformed: `${L.SafenetPolicy}: no attestation came with this transaction`,
   safenetUntrusted: `${L.SafenetPolicy}: signed by a key Safenet does not trust`,
+  policyNotASafe: 'The policy asks that address for Safe data, and it is not a Safe',
+  safenetUnreadable: `${L.SafenetPolicy}: the attestation cannot be read`,
   safenetSpent: (n: number) => `${L.SafenetPolicy}: nonce ${n} already has an approved step`,
   safenetSpentDetail: 'Safenet approves one check per nonce, so a batch can hold only one Safenet-checked step.',
   safenetInvalid: `${L.SafenetPolicy}: the attestation does not match this transaction`,
@@ -462,11 +465,21 @@ export const T = {
   execRevert: (who: string) => `${who} refused the call`,
   configureRefused: (policy: string, where: string) => `${policy} refused to be attached to ${where}`,
   configureWhereCatchAll: (what: string) => `the catch-all rule (${what})`,
+  execBatchTailSkipped: (n: number) => `MultiSend skips the last ${plural(n, 'byte')}, too short to be a step`,
   execStepDelegate: 'MultiSend (call only) refuses a delegatecall inside a batch',
   afterOk: 'The guard confirms the call succeeded',
   afterModuleFail: 'The module call failed, so the guard reverts everything',
   afterModuleFailDetail: 'Without this, a failed module call would leave policy changes in place.',
   callFailedNoRevert: 'The call failed, but the Safe does not revert',
+  callFailedNoRevertGasDetail: 'With gas settings that are not 0 and no guard, the Safe records the failure and keeps the nonce increment.',
+  execOutOfGas: 'The call runs out of gas',
+  execOutOfGasDetail:
+    'With a gas price set, the Safe gives the call only its Safe transaction gas, too little here for any code. Only a call to an address without code succeeds.',
+  refundFails: 'The gas refund fails: the Safe holds no ETH',
+  refundFailsDetail: 'With a gas price set, the Safe pays the relayer for gas after the call. Without ETH it cannot, so everything reverts.',
+  refundDetail: 'With a gas price set, the Safe pays the account that submitted the transaction for its gas. The amount depends on the gas used, so the playground does not move an exact amount.',
+  refundTech: 'handlePayment: (gasUsed + baseGas) * min(gasPrice, tx.gasprice) wei to tx.origin; amount not simulated',
+  commitNonceOnly: 'Only the nonce change is saved',
   callFailedNoRevertDetail: 'Nothing changed. The Safe only reports the failure.',
   commit: 'Transaction executed. Every change is saved.',
   rollback: 'Transaction reverted. Every staged change is undone.',
@@ -499,6 +512,11 @@ export const E = {
   rootApplied: (n: number) => `Rule change applied: ${plural(n, 'rule')}`,
   delegateNoEffect: (t: string) => `${t} ran as the Safe and changed nothing here`,
   noEffectOnSafe: (t: string) => `${t} changed nothing for the Safe`,
+  policyDirect: (policy: string, caller: string) => `${caller} called ${policy} directly, outside the Safe's rules`,
+  foreignRootRequested: (t: string) => `${t} requested a rule change for itself, not for the Safe`,
+  foreignRootCancelled: (t: string) => `${t} cancelled its own rule change request`,
+  foreignRootApplied: (t: string) => `${t} applied a rule change to itself, not to the Safe`,
+  gasRefund: 'The Safe pays a gas refund to the relayer',
   multiSendOwnCall: 'MultiSend acted for itself, not for the Safe'
 }
 

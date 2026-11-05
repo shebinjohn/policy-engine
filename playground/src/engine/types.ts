@@ -166,6 +166,20 @@ export interface World {
   policyState: Record<string, unknown>
   /** rootConfigured[root] = validFrom (unix seconds). */
   roots: Record<string, { validFrom: number; configurations: RuleSpec[] }>
+  /**
+   * Configuration roots requested by callers other than the Safe, which the guard keys by its
+   * msg.sender: `'guard:<caller>'` for a contract calling the guard (MultiSend used as CALL),
+   * `'safe:<executor>'` for guard code run by DELEGATECALL in the Safe's own storage.
+   * namespace -> root -> validFrom. Optional (absent in older worlds); never affects the Safe's rules.
+   */
+  otherRoots?: Record<string, Record<string, number>>
+  /**
+   * Policy storage written by direct calls to a policy (not through the guard), which the policy
+   * keys by (msg.sender, safe): namespace `'<caller>|<safe>'` (prefixed `'safe:'` when run by
+   * DELEGATECALL in the Safe's storage) -> the same shape as `policyState`. Optional; never
+   * affects the Safe's rules.
+   */
+  otherPolicyState?: Record<string, Record<string, unknown>>
   /** Monotonic log of executed transactions (for the UI history). */
   history: HistoryEntry[]
 }

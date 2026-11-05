@@ -61,38 +61,181 @@ export const WETH_IFACE = new ethers.Interface([
   'function decimals() view returns (uint8)'
 ])
 
+/** Safe 1.5.0 external functions (from the compiled artifact). */
 export const SAFE_IFACE = new ethers.Interface([
+  'function addOwnerWithThreshold(address owner, uint256 _threshold)',
+  'function approvedHashes(address, bytes32) view returns (uint256)',
+  'function approveHash(bytes32 hashToApprove)',
+  'function changeThreshold(uint256 _threshold)',
+  'function checkNSignatures(address executor, bytes32 dataHash, bytes signatures, uint256 requiredSignatures) view',
+  'function checkNSignatures(bytes32 dataHash, bytes data, bytes signatures, uint256 requiredSignatures) view',
+  'function checkSignatures(address executor, bytes32 dataHash, bytes signatures) view',
+  'function checkSignatures(bytes32 dataHash, bytes data, bytes signatures) view',
+  'function disableModule(address prevModule, address module)',
+  'function domainSeparator() view returns (bytes32)',
+  'function enableModule(address module)',
+  'function execTransaction(address to, uint256 value, bytes data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address refundReceiver, bytes signatures) payable returns (bool success)',
+  'function execTransactionFromModule(address to, uint256 value, bytes data, uint8 operation) returns (bool success)',
+  'function execTransactionFromModuleReturnData(address to, uint256 value, bytes data, uint8 operation) returns (bool success, bytes returnData)',
+  'function getModulesPaginated(address start, uint256 pageSize) view returns (address[] array, address next)',
+  'function getOwners() view returns (address[])',
+  'function getStorageAt(uint256 offset, uint256 length) view returns (bytes)',
+  'function getThreshold() view returns (uint256)',
+  'function getTransactionHash(address to, uint256 value, bytes data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address refundReceiver, uint256 _nonce) view returns (bytes32 txHash)',
+  'function isModuleEnabled(address module) view returns (bool)',
+  'function isOwner(address owner) view returns (bool)',
+  'function nonce() view returns (uint256)',
+  'function removeOwner(address prevOwner, address owner, uint256 _threshold)',
+  'function setFallbackHandler(address handler)',
   'function setGuard(address guard)',
   'function setModuleGuard(address moduleGuard)',
-  'function enableModule(address module)',
-  'function disableModule(address prevModule, address module)',
-  'function changeThreshold(uint256 _threshold)',
-  'function addOwnerWithThreshold(address owner, uint256 _threshold)',
-  'function removeOwner(address prevOwner, address owner, uint256 _threshold)',
+  'function setup(address[] _owners, uint256 _threshold, address to, bytes data, address fallbackHandler, address paymentToken, uint256 payment, address paymentReceiver)',
+  'function signedMessages(bytes32) view returns (uint256)',
+  'function simulateAndRevert(address targetContract, bytes calldataPayload)',
   'function swapOwner(address prevOwner, address oldOwner, address newOwner)',
-  'function setFallbackHandler(address handler)',
-  'function approveHash(bytes32 hashToApprove)',
-  'function getOwners() view returns (address[])',
-  'function getThreshold() view returns (uint256)',
-  'function nonce() view returns (uint256)',
-  'function isOwner(address owner) view returns (bool)',
-  'function isModuleEnabled(address module) view returns (bool)',
-  'function getStorageAt(uint256 offset, uint256 length) view returns (bytes)'
+  'function VERSION() view returns (string)'
 ])
 
+/** SafePolicyGuard external functions (from the compiled artifact). */
 export const GUARD_IFACE = new ethers.Interface([
   `function configureImmediately(${CONFIGURATION_TUPLE} configurations)`,
   'function requestConfiguration(bytes32 configureRoot)',
   `function applyConfiguration(${CONFIGURATION_TUPLE} configurations)`,
   'function invalidateRoot(bytes32 configureRoot)',
-  'function rootConfigured(address safe, bytes32 root) view returns (uint256)',
+  'function checkAfterExecution(bytes32, bool success) pure',
+  'function checkAfterModuleExecution(bytes32, bool success) pure',
+  'function checkModuleTransaction(address to, uint256 value, bytes data, uint8 operation, address module) returns (bytes32 moduleTxHash)',
+  'function checkTransaction(address safe, address to, uint256 value, bytes data, uint8 operation, bytes context) returns (address)',
+  'function checkTransaction(address to, uint256 value, bytes data, uint8 operation, uint256 safeTxGas, uint256, uint256 gasPrice, address, address, bytes signatures, address)',
   'function DELAY() view returns (uint256)',
   'function EXPIRY() view returns (uint256)',
-  'function supportsInterface(bytes4 interfaceId) view returns (bool)',
-  'function getPolicy(address safe, address to, bytes data, uint8 operation) view returns (uint256, address)'
+  'function getPolicy(address safe, address to, bytes data, uint8 operation) view returns (uint256, address)',
+  'function rootConfigured(address, bytes32) view returns (uint256)',
+  'function supportsInterface(bytes4 interfaceId) view returns (bool)'
 ])
 
+/** The function fragment `data` names in `iface`, if any (overloads resolved by selector). */
+export function fragmentOf(iface: ethers.Interface, data: string): ethers.FunctionFragment | undefined {
+  if (ethers.dataLength(data) < 4) return undefined
+  const sel = data.slice(0, 10).toLowerCase()
+  let found: ethers.FunctionFragment | undefined
+  iface.forEachFunction((f) => {
+    if (f.selector === sel) found = f
+  })
+  return found
+}
+
+function isDynamic(p: ethers.ParamType): boolean {
+  return p.isArray() || p.isTuple() || p.type === 'bytes' || p.type === 'string'
+}
+
+/**
+ * ABI-decode `data` for `fragment` the way Solidity does, or null when Solidity's decoder would
+ * revert. ethers v6 defers some decoding errors (a dirty address word) until an element is read,
+ * so every element is read here, and the static head words are re-encoded and compared so that
+ * dirty upper bits are refused as Solidity refuses them.
+ */
+export function decodeStrict(iface: ethers.Interface, fragment: ethers.FunctionFragment, data: string): ethers.Result | null {
+  try {
+    const result = iface.decodeFunctionData(fragment, data)
+    const values = touch(result)
+    const again = iface.encodeFunctionData(fragment, values)
+    const head = ethers.dataSlice(data, 4)
+    const reHead = ethers.dataSlice(again, 4)
+    for (let i = 0; i < fragment.inputs.length; i++) {
+      if (isDynamic(fragment.inputs[i])) continue
+      if (ethers.dataSlice(head, i * 32, i * 32 + 32) !== ethers.dataSlice(reHead, i * 32, i * 32 + 32)) return null
+    }
+    return result
+  } catch {
+    return null
+  }
+}
+
+/**
+ * ABI coder v1 decoding, as the deployed Safe 1.5.0 (solc 0.7.6) does it: static address and bool
+ * words in the head are not validated but cleaned (an address keeps its low 20 bytes, a bool is
+ * any non-zero). Lengths and offsets are still checked. Returns null when decoding would revert.
+ */
+export function decodeLax(iface: ethers.Interface, fragment: ethers.FunctionFragment, data: string): ethers.Result | null {
+  if (ethers.dataLength(data) < 4) return null
+  const words: string[] = []
+  const body = ethers.dataSlice(data, 4)
+  const n = fragment.inputs.length
+  if (ethers.dataLength(body) < 32 * n) return null
+  for (let i = 0; i < n; i++) {
+    const p = fragment.inputs[i]
+    let w = ethers.dataSlice(body, 32 * i, 32 * i + 32)
+    if (!isDynamic(p)) {
+      if (p.type === 'address') w = ethers.zeroPadValue(ethers.dataSlice(w, 12), 32)
+      if (p.type === 'bool') w = ethers.toBeHex(BigInt(w) === 0n ? 0n : 1n, 32)
+    }
+    words.push(w)
+  }
+  const cleaned = ethers.concat([data.slice(0, 10), ...words, ethers.dataSlice(body, 32 * n)])
+  try {
+    const result = iface.decodeFunctionData(fragment, cleaned)
+    touch(result)
+    return result
+  } catch {
+    return null
+  }
+}
+
+/** Read every element (recursively), so ethers' deferred decode errors surface inside a try. */
+function touch(result: ethers.Result): unknown[] {
+  const out: unknown[] = []
+  for (let i = 0; i < result.length; i++) {
+    const v = result[i]
+    out.push(v instanceof ethers.Result ? touch(v) : v)
+  }
+  return out
+}
+
 export const MULTISEND_IFACE = new ethers.Interface(['function multiSend(bytes transactions) payable'])
+
+const POLICY_CHECK = 'function checkTransaction(address safe, address to, uint256 value, bytes data, uint8 operation, address module, bytes context, uint256 access) returns (bytes4)'
+const POLICY_CONFIGURE = 'function configure(address safe, uint256 access, bytes data) returns (bool)'
+
+/** Each policy's external functions (from the compiled artifacts). */
+export const POLICY_ABIS: Record<PolicyName, ethers.Interface> = {
+  AllowPolicy: new ethers.Interface([POLICY_CHECK, POLICY_CONFIGURE]),
+  DenyPolicy: new ethers.Interface([POLICY_CHECK, POLICY_CONFIGURE]),
+  OneTimeAllowPolicy: new ethers.Interface([POLICY_CHECK, POLICY_CONFIGURE, 'function isGranted(address policyGuard, address safe, uint256 access) view returns (bool)']),
+  AllowedModulePolicy: new ethers.Interface([POLICY_CHECK, POLICY_CONFIGURE, 'function isModuleAllowed(address policyGuard, address safe, address module) view returns (bool)']),
+  NativeTransferPolicy: new ethers.Interface([POLICY_CHECK, POLICY_CONFIGURE]),
+  ERC20TransferPolicy: new ethers.Interface([
+    POLICY_CHECK,
+    POLICY_CONFIGURE,
+    'function getRecipientPermission(address policyGuard, address safe, address token, address recipient) view returns (uint8)'
+  ]),
+  ERC20ApprovePolicy: new ethers.Interface([
+    POLICY_CHECK,
+    POLICY_CONFIGURE,
+    'function getSpenderPermission(address policyGuard, address safe, address token, address spender) view returns (uint8)'
+  ]),
+  MultiSendPolicy: new ethers.Interface([POLICY_CHECK, POLICY_CONFIGURE]),
+  CoSignerPolicy: new ethers.Interface([
+    POLICY_CHECK,
+    POLICY_CONFIGURE,
+    'function getCoSigner(address policyGuard, address safe, uint256 access) view returns (address)',
+    'function isCoSignatureSpent(address policyGuard, address safe, bytes32 safeTxHash) view returns (bool)'
+  ]),
+  IncreasedThresholdPolicy: new ethers.Interface([
+    POLICY_CHECK,
+    POLICY_CONFIGURE,
+    'function getMaxAbsentOwners(address policyGuard, address safe, uint256 access) view returns (uint256)',
+    'function getRequiredSignatures(address policyGuard, address safe, uint256 access) view returns (uint256)'
+  ]),
+  SafenetPolicy: new ethers.Interface([
+    POLICY_CHECK,
+    POLICY_CONFIGURE,
+    'function getConsensusDomainSeparator() view returns (bytes32)',
+    'function isAttestationSpent(address policyGuard, address safe, uint256 nonce) view returns (bool)',
+    'function isKnownEpoch((uint256 x, uint256 y) groupKey, uint64 epoch) view returns (bool)',
+    'function updateEpoch((uint256 x, uint256 y) parentKey, uint64 parentEpoch, uint64 proposedEpoch, uint64 rolloverBlock, (uint256 x, uint256 y) newGroupKey, ((uint256 x, uint256 y) r, uint256 z) signature)'
+  ])
+}
 
 export const POLICY_IFACE = new ethers.Interface([
   'function checkTransaction(address safe, address to, uint256 value, bytes data, uint8 operation, address module, bytes context, uint256 access) returns (bytes4)',

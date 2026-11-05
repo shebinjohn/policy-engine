@@ -63,7 +63,10 @@ export async function runTx(world: World, tx: TxSpec): Promise<ChainResult> {
   const path = tx.path ?? 'owner'
 
   if (path === 'module') {
-    const moduleName = tx.module ?? 'AllowanceModule'
+    // Like the engine (simulate.ts moduleTx): an omitted module is the Safe's first enabled module
+    // (the head of the module list), or AllowanceModule when none is enabled.
+    const firstEnabled = (await enabledModules(world))[0]
+    const moduleName = tx.module ?? (firstEnabled ? nameOf(world, firstEnabled) : 'AllowanceModule')
     const module = world.base.modules[moduleName]
     if (!module) throw new Error(`module path: "${moduleName}" is not a module contract in the harness (AllowanceModule, RecoveryModule)`)
     const moduleAddress = await module.getAddress()

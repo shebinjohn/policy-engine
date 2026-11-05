@@ -4,22 +4,25 @@
  * Pure: works on a structuredClone of the world and returns the input world on failure.
  */
 import { accessSelector, decodeSelector } from './access.ts'
-import { EngineInputError, eqAddr, resolveAddress, shortLabel } from './book.ts'
-import { SELECTORS, configurationRootOf, contextFor, encodeTxCall, ruleToConfiguration, toEncodedTx, type EncodedCall } from './catalog.ts'
+import { ethers } from 'ethers'
+
+import { EngineInputError, RELAYER, ZERO, eqAddr, kindOf, resolveAddress, shortLabel } from './book.ts'
+import { SELECTORS, configurationRootOf, encodeSubTx, encodeTxCall, ruleToConfiguration, toEncodedTx, type EncodedCall } from './catalog.ts'
 import { checkTransaction, getPolicy, type EngineCtx, type Matched } from './engine.ts'
-import { contextLength } from './policies/common.ts'
+import { txIdentity } from './policies/common.ts'
+import { EMPTY_CONTEXT, buildContext, checkNSignatures, concatCtx, ctxLength, raw, type CtxBytes, type CtxNode } from './context.ts'
 import { Revert, toSimError, type Fault } from './errors.ts'
 import { describeCall, E, makeMessageFor, T } from './messages.ts'
-import { executeFromSafe, type ExecCtx } from './safe.ts'
+import { balanceOf, executeFromSafe, type ExecCtx } from './safe.ts'
 import type {
   CallSpec,
-  ContextSpec,
   Effect,
   EncodedTx,
   ErrorSource,
   RuleSpec,
   SimError,
   SimResult,
+  SubTxSpec,
   TraceEvent,
   TraceStatus,
   TxSpec,
@@ -114,6 +117,19 @@ export function simulate(world: World, tx: TxSpec): SimResult {
   return (tx.path ?? 'owner') === 'module' ? moduleTx(run, rootHints) : ownerTx(run, rootHints)
 }
 
+/**
+ * Does executing `call` run any code? With no gas (gasPrice != 0, safeTxGas 0) only a call or
+ * delegatecall to an address without code succeeds; ETH still moves on the 2300 stipend.
+ */
+const STARVED_GAS = 5000n
+
+function runsCode(w: World, call: EncodedCall): boolean {
+  const n = BigInt(call.to)
+  if (n > 0n && n <= 0x11n) return true // precompiles cost gas
+  const kind = kindOf(w, call.to)
+  return !(kind === 'person' || kind === 'service' || kind === 'contract')
+}
+
 function isBatch(call: EncodedCall): boolean {
   return call.operation === 1 && call.data.slice(0, 10) === SELECTORS.multiSend
 }
@@ -124,47 +140,43 @@ function byAddress(a: string, b: string): number {
   return x < y ? -1 : x > y ? 1 : 0
 }
 
-type SafeSigCheck = { ok: true } | { ok: false; error: 'GS020' | 'GS026'; who: string | null; duplicate?: boolean }
+const POLICY_CONTEXT_TYPE_HASH = ethers.id('SafePolicyGuard.PolicyContext.v1')
+const OWNER_SIG = 'owner-signature'
 
 /**
- * Safe.checkNSignatures(executor, txHash, signatures, threshold) over the bytes the harness sends:
- * the sorted owner signatures, then (if any) the context envelope `[payload][len][typeHash]`.
- * Too few owner signatures do not give GS020 once a context makes the blob long enough: the Safe
- * reads the next 65-byte slot out of the context. A co-signature or owner signatures in the
- * context are real signatures over the same hash (gas fields zero); anything else is garbage.
+ * The spec tree a context is built against: every checked (sub-)transaction with its tx hash at
+ * the signed nonce (a sub-transaction's zero `to` is the Safe, as MultiSendPolicy resolves it).
  */
-export function checkSafeSignatures(
-  w: World,
-  sorted: string[],
-  context: ContextSpec,
-  threshold: number,
-  gasZero: boolean
-): SafeSigCheck {
-  const tail = context === null ? 0 : contextLength(context) + 64
-  if (65 * sorted.length + tail < 65 * threshold) return { ok: false, error: 'GS020', who: null }
-  const fromContext = (j: number): string | null => {
-    if (!gasZero || context === null) return null
-    try {
-      if (context.type === 'cosignature') return j === 0 ? resolveAddress(w, context.signer) : null
-      if (context.type === 'ownerSignatures') {
-        const inner = context.signers.map((s) => resolveAddress(w, s)).sort(byAddress)
-        return inner[j] ?? null
-      }
-    } catch {
-      return null
-    }
-    return null
+function ctxNode(w: World, spec: TxSpec | SubTxSpec, call: { to: string; value: bigint; data: string; operation: 0 | 1 }, nonce: number): CtxNode {
+  const node: CtxNode = { hash: txIdentity(w, call, nonce) }
+  if (spec.call?.fn === 'multiSend' && spec.call.batch) {
+    node.subs = spec.call.batch.map((sub) => {
+      const enc = encodeSubTx(w, sub)
+      const to = eqAddr(enc.to, ZERO) ? w.safe.address : enc.to
+      return ctxNode(w, sub, { to, value: enc.value, data: enc.data, operation: enc.operation === 1 ? 1 : 0 }, nonce)
+    })
+    node.subContexts = spec.call.batch.map((sub) => sub.context)
   }
-  let last = 0n
-  for (let i = 0; i < threshold; i++) {
-    const who = i < sorted.length ? sorted[i] : fromContext(i - sorted.length)
-    if (who === null) return { ok: false, error: 'GS026', who: null }
-    const cur = BigInt(who)
-    const isOwner = w.safe.owners.some((o) => eqAddr(o, who))
-    if (cur <= last || !isOwner) return { ok: false, error: 'GS026', who, duplicate: isOwner }
-    last = cur
-  }
-  return { ok: true }
+  return node
+}
+
+/** The policy context payload the owners attach, or null for none (no envelope). */
+export function contextBytesFor(w: World, tx: TxSpec, call: EncodedCall, nonce: number): CtxBytes | null {
+  const node = ctxNode(w, tx, call, nonce)
+  return buildContext(w, tx.context, node, node.hash)
+}
+
+/**
+ * The Safe `signatures` blob: the owner signatures sorted by address, then, with a context, the
+ * SignatureExtension envelope `[payload][uint256 length][bytes32 typeHash]`.
+ */
+function signatureBlob(signers: string[], payload: CtxBytes | null): CtxBytes {
+  const sigs = signers.map((signer) => ({
+    hex: ethers.concat([ethers.id(`owner-sig:r:${signer}`), ethers.id(`owner-sig:s:${signer}`), '0x1b']),
+    tags: [{ start: 0, end: 65, kind: 'sig' as const, signer, hash: OWNER_SIG, overBatch: false }]
+  }))
+  if (!payload) return concatCtx(sigs)
+  return concatCtx([...sigs, payload, raw(ethers.toBeHex(ctxLength(payload), 32)), raw(POLICY_CONTEXT_TYPE_HASH)])
 }
 
 function ownerTx(run: Run, rootHints: Record<string, RuleSpec[]>): SimResult {
@@ -179,22 +191,26 @@ function ownerTx(run: Run, rootHints: Record<string, RuleSpec[]>): SimResult {
   const sorted = [...signers].sort(byAddress)
   const gasPrice = bigintOf(tx.gasPrice, 'gasPrice')
   const safeTxGas = bigintOf(tx.safeTxGas, 'safeTxGas')
-  const sig = checkSafeSignatures(w, sorted, contextFor(tx), threshold, gasPrice === 0n && safeTxGas === 0n)
+  const payload = contextBytesFor(w, tx, run.call, w.safe.nonce)
+  const blob = signatureBlob(sorted, payload)
+  const topHash = txIdentity(w, run.call, w.safe.nonce)
+  const gasZero = gasPrice === 0n && safeTxGas === 0n
+  const sig = checkNSignatures(w, blob, threshold, (h) => h === OWNER_SIG || (gasZero && h === topHash), RELAYER)
   if (!sig.ok) {
     const title =
       sig.error === 'GS020'
         ? T.signaturesTooFew(sorted.length, threshold)
-        : sig.who === null
+        : sig.slot >= sorted.length
           ? T.signaturesTooFewContext(sorted.length, threshold)
           : sig.duplicate
-            ? T.signaturesDuplicate(shortLabel(w, sig.who))
-            : T.signaturesBad(shortLabel(w, sig.who))
+            ? T.signaturesDuplicate(shortLabel(w, sig.who!))
+            : T.signaturesBad(shortLabel(w, sig.who ?? sorted[sig.slot]))
     ev(run, 'safe.signatures', 'Safe', 'fail', title, {
-      detail: sig.error === 'GS026' && sig.who === null ? T.signaturesContextDetail : T.signaturesDetail,
+      detail: sig.slot >= sorted.length && sig.error !== 'GS020' ? T.signaturesContextDetail : T.signaturesDetail,
       tech:
         sig.error === 'GS020'
           ? `checkNSignatures: signatures.length < ${threshold} * 65 reverts GS020`
-          : 'checkNSignatures: currentOwner <= lastOwner || owners[currentOwner] == address(0) reverts GS026'
+          : `checkNSignatures: signature ${sig.slot + 1} reverts ${sig.error}`
     })
     return failResult(run, { error: sig.error }, 'safe', undefined)
   }
@@ -233,7 +249,7 @@ function ownerTx(run: Run, rootHints: Record<string, RuleSpec[]>): SimResult {
     ev(run, 'guard.safeTxGas', 'Guard', 'pass', T.safeTxGasOk, { tech: 'safeTxGas == 0' })
     const ectx: EngineCtx = { w, trace: run.trace, effects: run.effects, module: null, signedNonce }
     try {
-      checkTransaction(ectx, run.call, contextFor(tx), 0)
+      checkTransaction(ectx, run.call, payload ?? EMPTY_CONTEXT, 0)
     } catch (e) {
       if (e instanceof Revert) return failResult(run, e.fault, 'guard', matchedFor(run))
       throw e
@@ -241,25 +257,58 @@ function ownerTx(run: Run, rootHints: Record<string, RuleSpec[]>): SimResult {
     matched = matchedFor(run)
   }
 
-  // 4. execute(to, value, data, operation, gas)
-  const x: ExecCtx = { w, trace: run.trace, effects: run.effects, executor: sorted[0] ?? w.safe.owners[0], rootHints }
+  // 4. execute(to, value, data, operation, gasPrice == 0 ? gasleft() - 2500 : safeTxGas)
+  const x: ExecCtx = { w, trace: run.trace, effects: run.effects, executor: RELAYER, rootHints }
+  // Without a guard nothing refuses non-zero gas settings. Safe 1.5.0 then gives the call only
+  // safeTxGas gas when gasPrice != 0 (Safe.sol 180), does not revert a failed call unless both are
+  // zero (Safe.sol 182), and refunds gas to tx.origin when gasPrice != 0 (Safe.sol 196-198).
   const swallow = !guarded && (safeTxGas !== 0n || gasPrice !== 0n)
+  // The engine does not meter gas: below STARVED_GAS no code can run (any state change behind the
+  // Safe proxy needs more); at or above it the gas is assumed to be enough.
+  const callGas = safeTxGas + (run.call.value > 0n && run.call.operation === 0 ? 2300n : 0n)
+  const starved = !guarded && gasPrice !== 0n && callGas < STARVED_GAS
   if (swallow) {
     const inner: ExecCtx = { ...x, w: structuredClone(w), effects: [] }
-    try {
-      executeFromSafe(inner, run.call, { depth: 0 })
+    let failure: Fault | null = null
+    if (starved && runsCode(w, run.call)) {
+      ev(run, 'exec.call', 'Target', 'info', T.execCall(describeCall(run.input, run.call.to, run.call.value, run.call.data, run.call.operation)))
+      ev(run, 'exec.revert', 'Target', 'fail', T.execOutOfGas, { detail: T.execOutOfGasDetail, tech: `execute(..., gas = safeTxGas = ${safeTxGas}): out of gas` })
+      failure = { error: 'OutOfGas' }
+    } else {
+      try {
+        executeFromSafe(inner, run.call, { depth: 0 })
+      } catch (e) {
+        if (!(e instanceof Revert)) throw e
+        failure = e.fault
+      }
+    }
+    if (failure === null) {
       run.w = inner.w
       run.effects.push(...inner.effects)
-    } catch (e) {
-      if (!(e instanceof Revert)) throw e
+    } else {
       run.effects.push(...inner.effects.map((ef) => ({ ...ef, reverted: true })))
       ev(run, 'exec.revert', 'Safe', 'warn', T.callFailedNoRevert, {
-        detail: 'With a Safe transaction gas limit set, the Safe records the failure and keeps the nonce increment.',
-        tech: 'success == false && safeTxGas != 0: ExecutionFailure, no revert'
+        detail: T.callFailedNoRevertGasDetail,
+        tech: 'success == false && (safeTxGas != 0 || gasPrice != 0): ExecutionFailure, no revert'
       })
-      ev(run, 'commit', 'Safe', 'warn', 'Only the nonce change is saved')
+    }
+    // handlePayment: (gasUsed + baseGas) * min(gasPrice, tx.gasprice) wei to tx.origin.
+    if (gasPrice !== 0n) {
+      if (balanceOf(run.w, 'ETH', w.safe.address) === 0n) {
+        ev(run, 'exec.revert', 'Safe', 'fail', T.refundFails, {
+          detail: T.refundFailsDetail,
+          tech: 'handlePayment: receiver.call{value: payment}("") fails: revert("GS011")'
+        })
+        return failResult(run, { error: 'GS011' }, 'execution', matched)
+      }
+      const refund: Effect = { kind: 'note', title: E.gasRefund, tech: T.refundTech }
+      run.effects.push(refund)
+      ev(run, 'exec.effect', 'Safe', 'warn', E.gasRefund, { detail: T.refundDetail, tech: T.refundTech })
+    }
+    if (failure !== null) {
+      ev(run, 'commit', 'Safe', 'warn', T.commitNonceOnly)
       run.w.history.push({ at: run.w.now, label: tx.label ?? describeCall(run.input, run.call.to, run.call.value, run.call.data, run.call.operation), ok: false, summary: 'The call failed. Nonce used.' })
-      const error = toSimError({ error: 'CallFailed', args: { inner: e.fault.error } }, 'execution', makeMessageFor(run.input))
+      const error = toSimError({ error: 'CallFailed', args: { inner: failure.error } }, 'execution', makeMessageFor(run.input))
       return { ok: false, error, trace: run.trace, effects: run.effects, world: run.w, encoded: run.encoded }
     }
   } else {
@@ -324,7 +373,7 @@ function moduleTx(run: Run, rootHints: Record<string, RuleSpec[]>): SimResult {
   // SafePolicyGuard.checkModuleTransaction: module from state, empty context.
   const ectx: EngineCtx = { w, trace: run.trace, effects: run.effects, module, signedNonce: w.safe.nonce - 1 }
   try {
-    checkTransaction(ectx, run.call, null, 0)
+    checkTransaction(ectx, run.call, EMPTY_CONTEXT, 0)
   } catch (e) {
     if (e instanceof Revert) return failResult(run, e.fault, 'guard', matchedFor(run))
     throw e

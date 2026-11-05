@@ -123,11 +123,20 @@ A tx may give raw `data` (hex) instead of `call`. No `call` and no `data` means 
 
 Order follows `Safe.execTransaction` (1.5.0) and `SafePolicyGuard.checkTransaction`.
 
-1. **Signatures** (Safe). Signers are sorted by address; the Safe needs `threshold` of them.
-   Fewer than `threshold` signers → `{by:'safe', error:'GS020'}`. A non-owner among the first
-   `threshold` sorted signers, or a duplicate → `GS026`. Content should only assert `by: 'safe'`
-   for these, because on chain the appended context changes which GS code fires (with too few
-   signers plus a context, conformance observed `GS026`, not `GS020`).
+1. **Signatures** (Safe). `checkNSignatures(executor, txHash, signatures, threshold)` over the
+   bytes the harness sends: the owner signatures sorted by address (65 bytes each), then, with a
+   context, the SignatureExtension envelope `[payload][uint256 length][bytes32 typeHash]` (no
+   context = no envelope; an empty `ownerSignatures` list = an envelope with an empty payload).
+   Blob shorter than `threshold * 65` → `{by:'safe', error:'GS020'}`. The first `threshold` slots
+   are read in order: an owner signature recovers its signer; a slot past the owner signatures is
+   read from the context bytes, exactly as Safe.sol 289-341 does: a co-signature or owner signature
+   of the same hash (only with zero gas fields) recovers its signer, `v = 0` is a contract
+   signature (`GS021`, `GS022`, `GS023`, or an empty revert from `isValidSignature`), `v = 1` an
+   approved hash (`GS025`), anything else an unrelated address. A non-owner, a duplicate or an
+   out-of-order signer → `GS026`. Transactions are submitted by a **relayer** that is not an owner
+   (as in the harness; not in the address book); it is the executor here and `msg.sender` of the
+   Safe frame. The one model limit left is address order: playground and Hardhat addresses
+   differ, so content must not depend on which of several signers sorts first.
 2. **Nonce** increments (staged). Policies compute hashes with `nonce - 1`, i.e. the nonce the
    owners signed.
 3. **No transaction guard installed** → trace a `warn` ("No guard: the Safe runs this without any
@@ -137,15 +146,31 @@ Order follows `Safe.execTransaction` (1.5.0) and `SafePolicyGuard.checkTransacti
 6. **Execution** (§9). A failed inner call reverts the whole tx with the inner revert data
    (Safe 1.5.0 bubbles it because `safeTxGas == 0 && gasPrice == 0`): `{by:'execution', error: <inner error name>}`.
    Empty revert data → `error: 'Reverted'`.
-   With `safeTxGas != 0` and **no** guard installed (so nothing rejects the non-zero gas), a failed
-   inner call does **not** revert: the Safe emits `ExecutionFailure`, the nonce is still used, and
-   the result is `{ok:false, by:'execution', error:'CallFailed'}` with only the nonce committed.
+   With **no** transaction guard (so nothing rejects non-zero gas settings), Safe 1.5.0:
+   - gives the call `gasleft() - 2500` when `gasPrice == 0`, else only `safeTxGas` (Safe.sol 180).
+     The engine does not meter gas. With `gasPrice != 0` and less than 5,000 gas for the call
+     (`safeTxGas`, plus the 2,300 stipend when it sends ETH) only a call or delegatecall to an
+     address without code succeeds (ETH still moves on the stipend); any code runs out of gas, as
+     every state change behind the Safe proxy needs more. At 5,000 gas or more the engine assumes
+     the gas is enough; content should use `safeTxGas` of 0 or at least 100,000 with a gas price;
+   - does **not** revert a failed call unless `safeTxGas == 0 && gasPrice == 0` (Safe.sol 182): the
+     Safe emits `ExecutionFailure`, the nonce is used, and the result is
+     `{ok:false, by:'execution', error:'CallFailed'}` with only the nonce committed;
+   - with `gasPrice != 0`, refunds gas to `tx.origin` after the call (`handlePayment`, Safe.sol
+     196-198, 229-230): `(gasUsed + baseGas) * min(gasPrice, tx.gasprice)` wei. If the Safe holds
+     no ETH the refund fails and the whole transaction reverts `GS011` (nonce unused). Otherwise the
+     refund is paid; its amount depends on the gas used, so the engine records an Effect note
+     ("The Safe pays a gas refund to the relayer") and does **not** move an exact amount (the Safe's
+     ETH balance in the engine is then slightly higher than on chain). A Safe holding less ETH
+     than the refund also reverts `GS011` on chain; the engine treats any ETH as enough.
 7. `checkAfterExecution(success)` always passes here (a failure already reverted).
 8. Commit.
 
 ## 6. Module transaction (`path: 'module'`)
 
-1. Module not enabled → `{by:'safe', error:'GS104'}`.
+1. The module is `tx.module`; omitted, it is the Safe's first enabled module (the head of the
+   module list, i.e. the most recently enabled), or `AllowanceModule` when none is enabled (the
+   engine and the harness agree). Module not enabled → `{by:'safe', error:'GS104'}`.
 2. **No module guard installed** → trace `warn` ("No module guard: modules bypass every policy")
    and go to execution.
 3. **Engine check** (§7) with `module = <module address>` and **empty** context. A `context` on a
@@ -211,11 +236,31 @@ Notes:
   sub-tx check fails with `Unauthorized` (README: "each sub-transaction's own hash at the batch's
   nonce, not the hash of the batch"). On the outer tx itself (when the batch is routed to
   `CoSignerPolicy`), `over: 'batch'` and `'self'` both mean the outer hash and pass.
-- A context of the wrong `type` for a policy is treated as an invalid signature (`Unauthorized`
-  for CoSigner, `GS020`/`GS026` for IncreasedThreshold by the counting rule, `MalformedAttestation`
-  for Safenet), judged by the **bytes** it would produce. One exception follows from that: an
-  `ownerSignatures` context with exactly one signer who is the configured co-signer is byte-for-byte
-  a valid co-signature, so `CoSignerPolicy` accepts it (verified by conformance).
+- **Context is bytes.** The engine builds each symbolic context into the bytes the harness sends
+  (`src/engine/context.ts`, same layout as `conformance/encode.ts buildContext`): `cosignature` 65
+  bytes; `ownerSignatures` 65 bytes per signer sorted by address, no signers = empty bytes;
+  `attestation` 256 bytes `abi.encode(uint64 epoch = 7, address oracle, bytes32, Point groupKey,
+  Signature)`; `batch` `[uint256 length][item]` per item (null = length 0), trailing empty items
+  dropped when built from sub-contexts. Signature bytes are placeholders tagged with their signer
+  and the tx hash they sign; a tag counts only when a reader takes exactly its bytes. Policies then
+  decide from those bytes:
+  - `CoSignerPolicy`: the whole context must be 65 bytes recovering to the co-signer over this
+    tx's hash, else `Unauthorized`. So an `ownerSignatures` context with exactly one signer who is
+    the co-signer is a valid co-signature (verified by conformance). Only people and `CoSigner`
+    hold keys; a signature claimed by anything else is just bytes.
+  - `IncreasedThresholdPolicy`: `checkNSignatures(address(0), hash, context, required)` byte by
+    byte as in §5 (so a non-signature context gives `GS020`, `GS021`, ..., or `GS026`).
+  - `SafenetPolicy`: only the length is checked before decoding (SafenetPolicy.sol 113): any other
+    length → `MalformedAttestation`; any 256 bytes are decoded (a dirty `uint64` or `address`
+    word → empty revert) and must carry the trusted genesis `(group key, epoch 7)`, else
+    `UntrustedAttestationKey` (so 256 zero bytes fail there, not as malformed); a trusted key with a
+    signature not over this tx → `InvalidMulMulAddWitness` (`InvalidScalar` / `NotOnCurve` for
+    malformed raw signature words).
+  - `MultiSendPolicy._decodeNextContext` parses **whatever** bytes it gets (MultiSendPolicy.sol
+    78-90): empty → every step empty; else a 32-byte length word, that many bytes for the step,
+    the rest for the next; a length running past the end → empty revert (`Reverted`). So an
+    attestation given to a batch yields a 7-byte first item (its epoch word), and a signature's
+    `r` word is never a valid length.
 
 ## 9. Execution effects
 
@@ -224,10 +269,14 @@ effect; anything else follows the "no code" rule.
 
 - **ETH value**: moved from the Safe to `to` before the call. Insufficient balance → the call fails
   with empty data → `Reverted`. For `DELEGATECALL` no ETH moves (policies still saw the declared value).
-- **Token (`USDC`, `SAFE`)**: OpenZeppelin ERC-20 v5 semantics and errors:
-  `transfer` (`ERC20InsufficientBalance`, `ERC20InvalidReceiver` for 0x0), `approve`
-  (`ERC20InvalidSpender` for 0x0), `transferFrom` (`ERC20InsufficientAllowance`, then balance).
-  Unknown selector or empty data → `Reverted`. Sending ETH to a token → `Reverted`.
+- **Token (`USDC`, `SAFE`)**: OpenZeppelin ERC-20 5.3 semantics and errors:
+  `transfer` (`ERC20InvalidReceiver` for 0x0, then `ERC20InsufficientBalance`), `approve`
+  (`ERC20InvalidSpender` for 0x0), `transferFrom` in OpenZeppelin's order (ERC20.sol 158-163,
+  300-307, 281): `_spendAllowance` first (`ERC20InsufficientAllowance`, then, unless the allowance
+  is unlimited, `_approve`, which gives `ERC20InvalidApprover` for `from == 0x0`), then
+  `_transfer` (`ERC20InvalidSender`, `ERC20InvalidReceiver`, `ERC20InsufficientBalance`).
+  Unknown selector, empty data or calldata Solidity cannot decode (short, or an address word with
+  dirty upper bits) → `Reverted`. Sending ETH to a token → `Reverted`.
 - **WETH**: WETH9. `deposit()` and the fallback (any other calldata, or empty) mint `value` WETH to
   the Safe; `withdraw(amount)` burns and sends ETH (insufficient → `Reverted`); `transfer`,
   `approve`, `transferFrom` as WETH9 (insufficient → `Reverted`).
@@ -238,9 +287,20 @@ effect; anything else follows the "no code" rule.
   sentinel, `GS102` already enabled); `disableModule` (`GS101`, `GS103`); `changeThreshold(t)`
   (`GS201` if `t > owners`, `GS202` if `t == 0`); `addOwnerWithThreshold` (`GS203` invalid,
   `GS204` duplicate, then threshold rules); `removeOwner` (`GS201`/`GS202`, `GS205` not an owner).
-  Any other calldata to the Safe (no fallback handler) succeeds and does nothing, and so does a
+  Every other external function of Safe 1.5.0 is recognised from its ABI and behaves as on chain:
+  views succeed; `getModulesPaginated` (`GS105` for a start that is neither the sentinel nor an
+  enabled module, `GS106` for page size 0); `checkSignatures` / `checkNSignatures` run the §5
+  signature check over the given raw bytes; `approveHash` (`GS030` unless `msg.sender` is an owner);
+  `setup` (`GS200`); a nested `execTransaction` fails its signature check;
+  `execTransactionFromModule*` (`GS104` unless `msg.sender` is an enabled module); `swapOwner`
+  (`GS203`, `GS204`, `GS205`); `simulateAndRevert` always reverts (error `0x00000000`, its first
+  revert word); `authorized` functions called from anywhere but the Safe itself → `GS031`.
+  Unknown calldata to the Safe (no fallback handler) succeeds and does nothing, and so does a
   plain ETH self-transfer; but ETH **with** unknown calldata → `Reverted`, because the Safe 1.5.0
-  fallback is not payable.
+  fallback is not payable. The deployed Safe 1.5.0 and MultiSendCallOnly are the official solc
+  0.7.6 builds (ABI coder v1): an address argument with dirty upper bits is **not** rejected but
+  cleaned to its low 20 bytes (and a bool to non-zero), unlike the 0.8 guard, policies, tokens and
+  WETH, which revert empty on it. Calldata too short for the arguments → `Reverted`.
 - **PolicyGuard** (CALL): `configureImmediately` → `GuardAlreadyEnabled` if either guard slot is
   the PolicyGuard, else confirms each rule (§10); `requestConfiguration(root)` → if
   `roots[root]` exists and is not expired → `RootAlreadyConfigured`; else `roots[root] = now + delay`;
@@ -248,9 +308,34 @@ effect; anything else follows the "no code" rule.
   `applyConfiguration(rules)` → root missing → `RootNotConfigured`; `now < validFrom` →
   `RootConfigurationPending`; `now >= validFrom + expiry` → `RootConfigurationExpired`; else delete
   the root and confirm each rule in order. Unknown selector or ETH → `Reverted`.
+  The guard keys this state by `msg.sender` (SafePolicyGuard.sol 362-366, 378, 391). Called by
+  another contract (MultiSend used as `CALL`), it works on **that caller's** namespace: its roots
+  persist (`world.otherRoots['guard:<caller>']`), a repeat request reverts `RootAlreadyConfigured`
+  (also within one batch), and invalidate / apply work on its own roots with the same timing
+  errors; `configureImmediately` and an applied configuration configure the caller's own rules,
+  which never affect the Safe (the engine still runs each policy's `configure`, which can revert).
+  Run by `DELEGATECALL` from the Safe, the guard code runs on the **Safe's** storage keyed by the
+  executor (`world.otherRoots['safe:<executor>']`): the relayer on the owner path, the module on
+  the module path. The guard's hooks called directly: `checkAfterExecution(_, false)` →
+  `ExecutionFailed`, `checkAfterModuleExecution(_, false)` → `ModuleExecutionFailed`; the engine
+  entry `checkTransaction(safe, ...)` → `NotChecking`; the guard's `checkTransaction(...)` hook
+  (`NonZeroGasPrice`, `NonZeroSafeTxGas`, then a full engine check: against the Safe's rules when
+  the Safe calls it, else in an empty namespace where only the configuration calls pass) and
+  `checkModuleTransaction(...)` likewise; `getPolicy` → `InvalidSelector` for 1-3 bytes of data.
+- **Policies called directly** (not by the guard) run their own code, keyed by
+  `(msg.sender, safe)`: their writes land in `world.otherPolicyState` and never affect the Safe's
+  rules. `configure` and `checkTransaction` revert with the policy's own errors; a policy that asks
+  `ISafe(safe)` for data (CoSigner, IncreasedThreshold, Safenet, `getRequiredSignatures`) reverts
+  empty when `safe` is not the Safe; `MultiSendPolicy` cannot recurse (the caller is not a policy
+  engine: empty revert); `SafenetPolicy.updateEpoch` → `UnknownParent` unless the parent is the
+  trusted genesis pair. Unknown selector, undecodable calldata or ETH → `Reverted`.
 - **MultiSend** as `DELEGATECALL` (the normal case): runs sub-txs in order from the Safe; a sub-tx
   `DELEGATECALL` → `Reverted`; `to == 0x0` → the Safe; any sub-tx failure reverts the whole batch
-  with that sub-tx's revert data. As a `CALL` (verified by conformance): the sub-txs run *from the
+  with that sub-tx's revert data. MultiSendCallOnly's loop starts its cursor at `0x20` and runs
+  while it is below the byte length, so a packed tail of 32 bytes or fewer is never executed (the
+  batch succeeds); reads past the end see zeroed memory. Its checker, `MultiSendPolicy`, slices
+  calldata with bounds checks instead, and converts the operation byte **first**: a value above 1
+  → `Panic` 0x21 before any length check (MultiSendPolicy.sol 66), a short entry → `Reverted`. As a `CALL` (verified by conformance): the sub-txs run *from the
   MultiSend contract*, not the Safe; zero-value sub-txs succeed (as calls by MultiSend), and a
   sub-tx that sends ETH reverts unless that ETH was attached to the outer call.
 - **Batches and guard changes**: the Safe reads its transaction guard **once**, before the
@@ -309,6 +394,11 @@ policy's `configure` refused a rule while setting it up), `exec.revert`,
   least one test.
 - `conformance: false` (or a reason string) skips the on-chain check, for example where Hardhat
   cannot produce the context (none expected; prefer making the harness capable).
+- `engine: false` (or a reason string) skips the **engine** replay (`npm test`), for a file whose
+  on-chain outcome depends on something the engine deliberately does not model; the reason is
+  printed. Today only `conformance/fixtures/fuzz/fuzz-signer-address-order.json` uses it (the order
+  of the signers' real addresses). `test/fixtures.test.ts` replays every `conformance/fixtures/**`
+  file through the engine, so engine == chain on every fixture.
 
 ## 13. Conformance
 

@@ -10,7 +10,8 @@ import { ZERO, eqAddr } from '../book.ts'
 import { SELECTORS } from '../catalog.ts'
 import { Revert } from '../errors.ts'
 import { describeCall, T } from '../messages.ts'
-import type { ContextSpec, TraceEvent } from '../types.ts'
+import { EMPTY_CONTEXT, ctxLength, sliceCtx, wordAt, type CtxBytes } from '../context.ts'
+import type { TraceEvent } from '../types.ts'
 import { emit, fail, type CheckArgs, type CheckCtx, type PolicyImpl, type SubCall } from './common.ts'
 
 function word(bytes: Uint8Array, at: number): bigint {
@@ -31,9 +32,11 @@ function packedTransactions(data: string): Uint8Array {
 
 /** `_decodeNextTransaction`. */
 function nextTransaction(safe: string, txs: Uint8Array): { call: SubCall; rest: Uint8Array } {
-  if (txs.length < 85) throw new Revert({ error: 'Reverted' })
+  // Operation(uint8(transactions[0])) converts first: a value above 1 panics 0x21 before any
+  // slice bounds check (MultiSendPolicy.sol 66).
   const op = txs[0]
   if (op > 1) throw new Revert({ error: 'Panic', args: { code: '0x21' } })
+  if (txs.length < 85) throw new Revert({ error: 'Reverted' })
   let to = ethers.getAddress(ethers.hexlify(txs.slice(1, 21)))
   if (eqAddr(to, ZERO)) to = safe
   const value = word(txs, 21)
@@ -61,11 +64,19 @@ export function countSubTxs(data: string): number | null {
   }
 }
 
-/** `_decodeNextContext`, symbolically: the i-th item of a positional list, empty once exhausted. */
-function contextAt(context: ContextSpec, i: number): ContextSpec {
-  if (context === null || context === undefined) return null
-  if (context.type !== 'batch') throw new Revert({ error: 'Reverted' })
-  return context.items[i] ?? null
+/**
+ * `_decodeNextContext` (MultiSendPolicy.sol 78-90) on the context bytes: empty stays empty;
+ * otherwise a 32-byte length, that many bytes for this step, and the rest for the next.
+ */
+function nextContext(context: CtxBytes): { ctx: CtxBytes; rest: CtxBytes } {
+  const len = ctxLength(context)
+  if (len === 0) return { ctx: EMPTY_CONTEXT, rest: EMPTY_CONTEXT }
+  const length = wordAt(context, 0)
+  if (length === null) throw new Revert({ error: 'Reverted' })
+  if (length > (1n << 256n) - 33n) throw new Revert({ error: 'Panic', args: { code: '0x11' } })
+  const end = 32n + length
+  if (end > BigInt(len)) throw new Revert({ error: 'Reverted' })
+  return { ctx: sliceCtx(context, 32, Number(end)), rest: sliceCtx(context, Number(end), len) }
 }
 
 export const MultiSendPolicy: PolicyImpl = {
@@ -95,9 +106,10 @@ export const MultiSendPolicy: PolicyImpl = {
       detail: T.batchStartDetail
     })
     let i = 0
+    let context = a.context
     while (txs.length > 0) {
       let call: SubCall
-      let subContext: ContextSpec
+      let subContext: CtxBytes
       try {
         const next = nextTransaction(a.safe, txs)
         call = next.call
@@ -107,7 +119,9 @@ export const MultiSendPolicy: PolicyImpl = {
         throw e
       }
       try {
-        subContext = contextAt(a.context, i)
+        const next = nextContext(context)
+        subContext = next.ctx
+        context = next.rest
       } catch (e) {
         if (e instanceof Revert) fail(ctx, a, 'MultiSendPolicy', { title: T.batchContextMalformed }, e.fault)
         throw e

@@ -8,6 +8,12 @@ import { ethers } from 'ethers'
 import type { Entity, PolicyName, World } from './types.ts'
 
 export const ZERO = '0x0000000000000000000000000000000000000000'
+/**
+ * The account that submits owner transactions (msg.sender of execTransaction). Like the
+ * conformance harness relayer it is not an owner and not in the address book; it only matters
+ * where code sees msg.sender of the Safe frame (a delegatecall) or an approved-hash signature.
+ */
+export const RELAYER = '0x7e1A00000000000000000000000000000000fe1A'
 /** Safe's linked-list sentinel (`SENTINEL_OWNERS` / `SENTINEL_MODULES`). */
 export const SENTINEL = '0x0000000000000000000000000000000000000001'
 
@@ -219,6 +225,15 @@ export function resolveEntity(world: World | null, nameOrAddress: string): Entit
   const address = resolveAddress(world, nameOrAddress)
   const known = findByAddress(world, address)
   if (known) return known
+  if (eqAddr(address, RELAYER)) {
+    return {
+      name: 'Relayer',
+      label: 'Relayer',
+      address: RELAYER,
+      kind: 'service',
+      description: 'The account that submits owner transactions. It is not an owner.'
+    }
+  }
   return {
     name: address,
     label: `${address.slice(0, 6)}…${address.slice(-4)}`,

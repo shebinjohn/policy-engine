@@ -23,17 +23,23 @@ import {
   ERC20_IFACE,
   GUARD_IFACE,
   MULTISEND_IFACE,
-  POLICY_IFACE,
+  POLICY_ABIS,
   SAFE_IFACE,
   SELECTORS,
   WETH_IFACE,
   configurationRootOf,
-  decodeConfigurations
+  decodeConfigurations,
+  decodeLax,
+  decodeStrict,
+  fragmentOf
 } from './catalog.ts'
-import { confirmPolicy } from './engine.ts'
+import { decodeSelector } from './access.ts'
+import { EMPTY_CONTEXT, SAFENET_EPOCH, checkNSignatures, frostVerifyFailure, onCurve, raw, safenetTrustedKey, type CtxBytes } from './context.ts'
+import { POLICIES, type CheckCtx } from './policies/index.ts'
+import { checkTransaction, confirmPolicy, type EngineCtx } from './engine.ts'
 import { Revert, type Fault } from './errors.ts'
 import { describeAccess, describeCall, E, formatTime, genericMessage, policyLabel, T } from './messages.ts'
-import type { Effect, RuleSpec, TraceEvent, TraceStatus, World } from './types.ts'
+import type { Effect, PolicyName, RuleSpec, TraceEvent, TraceStatus, World } from './types.ts'
 
 export interface ExecCall {
   to: string
@@ -197,7 +203,7 @@ function dispatchCall(x: ExecCtx, from: string, call: ExecCall, at: Where): void
   const kind = kindOf(x.w, call.to)
   switch (kind) {
     case 'safe':
-      return safeCall(x, from, call, at, from)
+      return safeCall(x, call, at, from)
     case 'guard':
       return guardCall(x, from, call, at)
     case 'token':
@@ -206,23 +212,12 @@ function dispatchCall(x: ExecCtx, from: string, call: ExecCall, at: Where): void
       return wethCall(x, from, call, at)
     case 'multisend': {
       if (call.data.slice(0, 10) !== SELECTORS.multiSend) emptyRevert('MultiSend only understands multiSend.')
-      let packed: string
-      try {
-        packed = String(MULTISEND_IFACE.decodeFunctionData('multiSend', call.data)[0])
-      } catch {
-        emptyRevert('The batch data cannot be read.')
-      }
+      const packed = multiSendBytes(call.data)
       event(x, at, 'exec.call', 'warn', T.execMultiSendCall, { detail: T.execMultiSendCallDetail, actor: 'MultiSend' })
       return runBatch(x, call.to, packed, at)
     }
-    case 'policy': {
-      if (call.value > 0n) emptyRevert('Policies cannot receive ETH.')
-      const sel = call.data.slice(0, 10)
-      const known = POLICY_IFACE.fragments.some((f) => f.type === 'function' && (f as ethers.FunctionFragment).selector === sel)
-      if (!known) emptyRevert('This policy has no such function.')
-      effect(x, at, 'note', E.noEffectOnSafe(who(x, call.to)), undefined, 'info')
-      return
-    }
+    case 'policy':
+      return policyCode(x, policyAt(x.w, call.to)!, '', from, call, at)
     case 'module':
       // The modules are TestModule contracts: one function, no receive, no fallback.
       emptyRevert(`${who(x, call.to)} is a contract with no function for this call.`)
@@ -237,12 +232,18 @@ function dispatchCall(x: ExecCtx, from: string, call: ExecCall, at: Where): void
 // Safe self-calls
 // ---------------------------------------------------------------------------------------------
 
-function decodeOrRevert(iface: ethers.Interface, fn: string, data: string): ethers.Result {
-  try {
-    return iface.decodeFunctionData(fn, data)
-  } catch {
-    emptyRevert('The call data cannot be read.')
-  }
+/** Solidity ABI decoding of `data` for its function in `iface`; empty revert when it would fail. */
+function decodeOrRevert(iface: ethers.Interface, fragment: ethers.FunctionFragment, data: string): ethers.Result {
+  const args = decodeStrict(iface, fragment, data)
+  if (!args) emptyRevert('The call data cannot be read.')
+  return args
+}
+
+/** The deployed Safe and MultiSendCallOnly are solc 0.7.6 builds: ABI coder v1 (decodeLax). */
+function decodeV1OrRevert(iface: ethers.Interface, fragment: ethers.FunctionFragment, data: string): ethers.Result {
+  const args = decodeLax(iface, fragment, data)
+  if (!args) emptyRevert('The call data cannot be read.')
+  return args
 }
 
 function prevOf(list: string[], item: string): string | null {
@@ -251,32 +252,91 @@ function prevOf(list: string[], item: string): string | null {
   return i === 0 ? SENTINEL : list[i - 1]
 }
 
-/** Safe code running with `sender` as msg.sender. `from` is the caller frame for ETH. */
-function safeCall(x: ExecCtx, _from: string, call: ExecCall, at: Where, sender: string): void {
+const AUTHORIZED = new Set([
+  'setGuard',
+  'setModuleGuard',
+  'enableModule',
+  'disableModule',
+  'changeThreshold',
+  'addOwnerWithThreshold',
+  'removeOwner',
+  'swapOwner',
+  'setFallbackHandler'
+])
+
+/** `checkNSignatures` over raw signature bytes (no tagged signatures: raw calldata carries none). */
+function rawSignatureCheck(x: ExecCtx, sigs: string, required: bigint, executor: string): void {
+  if (required * 65n >= 1n << 256n) emptyRevert() // SafeMath mul overflow
+  if (required * 65n > BigInt(ethers.dataLength(sigs))) fault('GS020')
+  const res = checkNSignatures(x.w, raw(sigs), Number(required), () => false, executor)
+  if (!res.ok) fault(res.error)
+}
+
+/**
+ * Safe 1.5.0 code running with `sender` as msg.sender: the caller, or, in a DELEGATECALL frame,
+ * the account that called the Safe. Every external function of the Safe is recognised.
+ */
+function safeCall(x: ExecCtx, call: ExecCall, at: Where, sender: string): void {
   const w = x.w
-  const len = ethers.dataLength(call.data)
-  if (len === 0) return // receive(): accepts ETH
-  const sel = len >= 4 ? call.data.slice(0, 10) : null
-  const fragment = sel ? SAFE_IFACE.fragments.find((f) => f.type === 'function' && (f as ethers.FunctionFragment).selector === sel) : undefined
+  if (ethers.dataLength(call.data) === 0) return // receive(): accepts ETH
+  const fragment = fragmentOf(SAFE_IFACE, call.data)
   if (!fragment) {
     // fallback() with no fallback handler: non-payable, returns nothing.
     if (call.value > 0n) emptyRevert('The Safe fallback does not accept ETH.')
     effect(x, at, 'note', 'The Safe has no fallback handler, so the call did nothing', 'FallbackManager.fallback: handler == address(0)', 'info')
     return
   }
-  const fn = (fragment as ethers.FunctionFragment).name
-  if (call.value > 0n) emptyRevert('This Safe function does not accept ETH.')
-  const args = decodeOrRevert(SAFE_IFACE, fn, call.data)
-  const view = (fragment as ethers.FunctionFragment).constant
-  if (view) return
-  if (fn === 'approveHash') {
-    if (!w.safe.owners.some((o) => eqAddr(o, sender))) fault('GS030')
-    effect(x, at, 'note', 'An approved hash was recorded', undefined, 'info')
-    return
+  const fn = fragment.name
+  if (call.value > 0n && !fragment.payable) emptyRevert('This Safe function does not accept ETH.')
+  const args = decodeV1OrRevert(SAFE_IFACE, fragment, call.data)
+  if (AUTHORIZED.has(fn) && !eqAddr(sender, w.safe.address)) {
+    fault('GS031', { message: 'Only the Safe itself can change its own settings, and this call comes from somewhere else.' })
   }
-  if (!eqAddr(sender, w.safe.address)) fault('GS031', { message: 'Only the Safe itself can change its own settings, and this call comes from somewhere else.' })
   const guard = addressOf(w, 'PolicyGuard')
   switch (fn) {
+    case 'getModulesPaginated': {
+      const start = String(args[0])
+      const enabled = !eqAddr(start, SENTINEL) && w.safe.modules.some((m) => eqAddr(m, start))
+      if (!eqAddr(start, SENTINEL) && !enabled) fault('GS105', { message: 'The start of the module list must be the sentinel or an enabled module.' })
+      if (BigInt(args[1]) === 0n) fault('GS106', { message: 'The page size must be at least 1.' })
+      return
+    }
+    case 'checkSignatures': {
+      const withExecutor = fragment.inputs[0].type === 'address'
+      rawSignatureCheck(x, String(args[2]), BigInt(w.safe.threshold), withExecutor ? String(args[0]) : sender)
+      return
+    }
+    case 'checkNSignatures': {
+      const withExecutor = fragment.inputs[0].type === 'address'
+      rawSignatureCheck(x, String(args[2]), BigInt(args[3]), withExecutor ? String(args[0]) : sender)
+      return
+    }
+    case 'execTransaction': {
+      // A nested Safe transaction: the nonce moves, then checkSignatures over the raw bytes.
+      if (Number(args[3]) > 1) emptyRevert()
+      rawSignatureCheck(x, String(args[9]), BigInt(w.safe.threshold), sender)
+      effect(x, at, 'note', 'A nested Safe transaction is not simulated', 'execTransaction from inside a transaction', 'warn')
+      return
+    }
+    case 'execTransactionFromModule':
+    case 'execTransactionFromModuleReturnData': {
+      if (Number(args[3]) > 1) emptyRevert()
+      if (eqAddr(sender, SENTINEL) || !w.safe.modules.some((m) => eqAddr(m, sender))) fault('GS104')
+      effect(x, at, 'note', 'A nested module transaction is not simulated', `${fn} from inside a transaction`, 'warn')
+      return
+    }
+    case 'setup':
+      fault('GS200')
+      return
+    case 'simulateAndRevert':
+      // Always reverts, with abi.encodePacked(success, returndatasize, returndata): the first word is 0 or 1.
+      fault('0x00000000', { message: 'simulateAndRevert always reverts, returning the simulation result as revert data.' })
+      return
+    case 'approveHash': {
+      if (!w.safe.owners.some((o) => eqAddr(o, sender))) fault('GS030')
+      effect(x, at, 'note', 'An approved hash was recorded', undefined, 'info')
+      return
+    }
     case 'setGuard':
     case 'setModuleGuard': {
       const g = ethers.getAddress(args[0])
@@ -356,6 +416,8 @@ function safeCall(x: ExecCtx, _from: string, call: ExecCall, at: Where, sender: 
       effect(x, at, 'note', 'Fallback handler change is not simulated', `setFallbackHandler(${args[0]})`, 'warn')
       return
     }
+    default:
+      return // views
   }
 }
 
@@ -369,91 +431,209 @@ function changeThreshold(x: ExecCtx, at: Where, t: bigint): void {
 }
 
 // ---------------------------------------------------------------------------------------------
-// SafePolicyGuard configuration entry points
+// SafePolicyGuard
 // ---------------------------------------------------------------------------------------------
 
+/**
+ * Where guard code runs. `ns` null is the Safe's own namespace (the Safe calling the guard);
+ * otherwise the guard keys its state by msg.sender: 'guard:<caller>' for another contract
+ * calling the guard, 'safe:<executor>' for guard code run by DELEGATECALL in the Safe's storage.
+ * `self` is address(this) for the code: the guard, or the Safe under DELEGATECALL.
+ */
+interface GuardFrame {
+  ns: string | null
+  self: string
+  sender: string
+}
+
+function rootGet(x: ExecCtx, ns: string | null, r: string): number | undefined {
+  if (ns === null) return x.w.roots[r]?.validFrom
+  return x.w.otherRoots?.[ns]?.[r]
+}
+
+function rootSet(x: ExecCtx, ns: string | null, r: string, validFrom: number): void {
+  if (ns === null) {
+    x.w.roots[r] = { validFrom, configurations: structuredClone(x.rootHints[r] ?? []) }
+    return
+  }
+  const all = (x.w.otherRoots ??= {})
+  ;(all[ns] ??= {})[r] = validFrom
+}
+
+function rootDelete(x: ExecCtx, ns: string | null, r: string): void {
+  if (ns === null) {
+    delete x.w.roots[r]
+    return
+  }
+  const all = x.w.otherRoots
+  if (!all?.[ns]) return
+  delete all[ns][r]
+  if (Object.keys(all[ns]).length === 0) delete all[ns]
+  if (Object.keys(all).length === 0) delete x.w.otherRoots
+}
+
 function guardCall(x: ExecCtx, from: string, call: ExecCall, at: Where): void {
-  const w = x.w
   if (call.value > 0n) emptyRevert('The Policy Guard does not accept ETH.')
-  const sel = ethers.dataLength(call.data) >= 4 ? call.data.slice(0, 10) : null
-  const fromSafe = isSafe(x, from)
+  const guard = addressOf(x.w, 'PolicyGuard')
+  guardCode(x, { ns: isSafe(x, from) ? null : `guard:${ethers.getAddress(from)}`, self: guard, sender: from }, call.data, at)
+}
+
+/** SafeSignatureExtension.payload / SafePolicyGuard._decodeContext over raw signature bytes. */
+function decodeContextEnvelope(signatures: string): CtxBytes {
+  const len = ethers.dataLength(signatures)
+  const typeHash = ethers.id('SafePolicyGuard.PolicyContext.v1')
+  if (len < 32 || ethers.dataSlice(signatures, len - 32) !== typeHash) return EMPTY_CONTEXT
+  if (len < 64) fault('MalformedSignatureExtension')
+  const end = len - 64
+  const payloadLength = BigInt(ethers.dataSlice(signatures, end, end + 32))
+  if (payloadLength > BigInt(end)) fault('MalformedSignatureExtension')
+  return raw(ethers.dataSlice(signatures, end - Number(payloadLength), end))
+}
+
+/**
+ * PolicyEngine.checkTransaction for a guard hook called directly. In the Safe's namespace the
+ * real rules apply; in any other namespace no rule exists, so only `_allowedCalls`
+ * (pinned to address(this)) and GuardTargetDenied can let a call through or name it.
+ */
+function hookCheck(x: ExecCtx, frame: GuardFrame, sub: ExecCall, context: CtxBytes, module: string | null, at: Where): void {
+  if (frame.ns === null) {
+    const ectx: EngineCtx = { w: x.w, trace: x.trace, effects: x.effects, module, signedNonce: x.w.safe.nonce - 1 }
+    checkTransaction(ectx, sub, context, at.depth + 1)
+    return
+  }
+  const sel = decodeSelector(sub.data)
+  if (!sel.ok) fault('InvalidSelector')
+  const configCall =
+    eqAddr(sub.to, frame.self) &&
+    sub.value === 0n &&
+    sub.operation === 0 &&
+    [SELECTORS.requestConfiguration, SELECTORS.applyConfiguration, SELECTORS.invalidateRoot].includes(sel.selector as never)
+  if (configCall) {
+    if (module !== null && !eqAddr(module, ZERO)) fault('ModuleConfigurationDenied')
+    return
+  }
+  if (eqAddr(sub.to, frame.self)) fault('GuardTargetDenied')
+  fault('AccessDenied', { policy: null, args: { policy: ZERO } })
+}
+
+/** SafePolicyGuard code: every external function, keyed by msg.sender as on chain. */
+function guardCode(x: ExecCtx, frame: GuardFrame, data: string, at: Where): void {
+  const w = x.w
+  const fragment = fragmentOf(GUARD_IFACE, data)
+  if (!fragment) emptyRevert('The Policy Guard has no such function.')
+  const args = decodeOrRevert(GUARD_IFACE, fragment, data)
+  const ns = frame.ns
+  const foreign = ns !== null
+  const owner = who(x, frame.sender)
   const guard = addressOf(w, 'PolicyGuard')
-  switch (sel) {
-    case SELECTORS.configureImmediately: {
+  const opArg = (v: unknown): Op => {
+    if (BigInt(v as bigint) > 1n) emptyRevert() // enum Operation out of range
+    return Number(v) as Op
+  }
+  switch (fragment.format('sighash')) {
+    case 'configureImmediately((address,bytes4,uint8,address,bytes)[])': {
       let configs
       try {
-        configs = decodeConfigurations(GUARD_IFACE, 'configureImmediately', call.data)
+        configs = decodeConfigurations(GUARD_IFACE, 'configureImmediately', data)
       } catch {
         emptyRevert('The rule list cannot be read.')
       }
-      if (!fromSafe) {
-        // Configures the caller's own namespace: validate, then drop.
+      if (foreign) {
+        // _isGuardEnabled(msg.sender) is false for a caller that is not a Safe: it configures
+        // its own namespace. Validate the rules (configure may still revert), then drop them.
         const scratch = structuredClone(w)
         for (const c of configs) confirmPolicy(scratch, c, null)
-        effect(x, at, 'note', E.noEffectOnSafe(who(x, from)), 'configureImmediately from a non-Safe caller', 'info')
+        effect(x, at, 'note', E.noEffectOnSafe(owner), 'configureImmediately in the caller namespace', 'info')
         return
       }
-      if (eqAddr(w.safe.txGuard, guard) || eqAddr(w.safe.moduleGuard, guard)) {
-        fault('GuardAlreadyEnabled')
-      }
+      if (eqAddr(w.safe.txGuard, guard) || eqAddr(w.safe.moduleGuard, guard)) fault('GuardAlreadyEnabled')
       for (const c of configs) confirmWithEffect(x, at, c)
       return
     }
-    case SELECTORS.requestConfiguration: {
-      const [root] = decodeOrRevert(GUARD_IFACE, 'requestConfiguration', call.data)
-      const r = String(root).toLowerCase()
-      if (!fromSafe) {
-        effect(x, at, 'note', E.noEffectOnSafe(who(x, from)), undefined, 'info')
-        return
-      }
-      const existing = w.roots[r]
-      if (existing && !(w.now >= existing.validFrom + w.expiry)) {
-        fault('RootAlreadyConfigured', { args: { root: r } })
-      }
+    case 'requestConfiguration(bytes32)': {
+      const r = String(args[0]).toLowerCase()
+      const existing = rootGet(x, ns, r)
+      if (existing !== undefined && !(w.now >= existing + w.expiry)) fault('RootAlreadyConfigured', { args: { root: r } })
       const validFrom = w.now + w.delay
-      w.roots[r] = { validFrom, configurations: structuredClone(x.rootHints[r] ?? []) }
-      effect(x, at, 'root', E.rootRequested(formatTime(validFrom)), `rootConfigured[safe][${r}] = ${validFrom}`)
+      rootSet(x, ns, r, validFrom)
+      effect(
+        x,
+        at,
+        foreign ? 'note' : 'root',
+        foreign ? E.foreignRootRequested(owner) : E.rootRequested(formatTime(validFrom)),
+        `rootConfigured[${foreign ? frame.sender : 'safe'}][${r}] = ${validFrom}`,
+        foreign ? 'info' : 'pass'
+      )
       return
     }
-    case SELECTORS.invalidateRoot: {
-      const [root] = decodeOrRevert(GUARD_IFACE, 'invalidateRoot', call.data)
-      const r = String(root).toLowerCase()
-      if (!fromSafe || !w.roots[r]) fault('RootNotConfigured', { args: { root: r } })
-      delete w.roots[r]
-      effect(x, at, 'root', E.rootCancelled, `delete rootConfigured[safe][${r}]`)
+    case 'invalidateRoot(bytes32)': {
+      const r = String(args[0]).toLowerCase()
+      if (rootGet(x, ns, r) === undefined) fault('RootNotConfigured', { args: { root: r } })
+      rootDelete(x, ns, r)
+      effect(x, at, foreign ? 'note' : 'root', foreign ? E.foreignRootCancelled(owner) : E.rootCancelled, `delete rootConfigured[${foreign ? frame.sender : 'safe'}][${r}]`, foreign ? 'info' : 'pass')
       return
     }
-    case SELECTORS.applyConfiguration: {
+    case 'applyConfiguration((address,bytes4,uint8,address,bytes)[])': {
       let configs
       try {
-        configs = decodeConfigurations(GUARD_IFACE, 'applyConfiguration', call.data)
+        configs = decodeConfigurations(GUARD_IFACE, 'applyConfiguration', data)
       } catch {
         emptyRevert('The rule list cannot be read.')
       }
       const r = configurationRootOf(configs)
-      const entry = fromSafe ? w.roots[r] : undefined
-      if (!entry) fault('RootNotConfigured', { args: { root: r } })
-      if (w.now < entry.validFrom) {
+      const validFrom = rootGet(x, ns, r)
+      if (validFrom === undefined) fault('RootNotConfigured', { args: { root: r } })
+      if (w.now < validFrom) {
         fault('RootConfigurationPending', {
-          message: `The waiting period ends at ${formatTime(entry.validFrom)}. Until then the change cannot be applied.`
+          message: `The waiting period ends at ${formatTime(validFrom)}. Until then the change cannot be applied.`
         })
       }
-      if (w.now >= entry.validFrom + w.expiry) {
+      if (w.now >= validFrom + w.expiry) {
         fault('RootConfigurationExpired', {
-          message: `This rule change could be applied until ${formatTime(entry.validFrom + w.expiry)}. It expired. Request it again.`
+          message: `This rule change could be applied until ${formatTime(validFrom + w.expiry)}. It expired. Request it again.`
         })
       }
-      delete w.roots[r]
+      rootDelete(x, ns, r)
+      if (foreign) {
+        const scratch = structuredClone(w)
+        for (const c of configs) confirmPolicy(scratch, c, null)
+        effect(x, at, 'note', E.foreignRootApplied(owner), `RootApplied(${frame.sender}, ${r})`, 'info')
+        return
+      }
       effect(x, at, 'root', E.rootApplied(configs.length), `RootApplied(safe, ${r})`)
       for (const c of configs) confirmWithEffect(x, at, c)
       return
     }
+    case 'checkAfterExecution(bytes32,bool)':
+      if (!args[1]) fault('ExecutionFailed')
+      return
+    case 'checkAfterModuleExecution(bytes32,bool)':
+      if (!args[1]) fault('ModuleExecutionFailed')
+      return
+    case 'checkTransaction(address,address,uint256,bytes,uint8,bytes)':
+      // The engine entry point outside a guard check: $checkingSafe is zero.
+      fault('NotChecking', { message: 'The engine check can only run inside a guard check.' })
+      return
+    case 'checkTransaction(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes,address)': {
+      const sub: ExecCall = { to: ethers.getAddress(args[0]), value: BigInt(args[1]), data: String(args[2]).toLowerCase(), operation: opArg(args[3]) }
+      if (BigInt(args[6]) !== 0n) fault('NonZeroGasPrice')
+      if (BigInt(args[4]) !== 0n) fault('NonZeroSafeTxGas')
+      hookCheck(x, frame, sub, decodeContextEnvelope(String(args[9])), null, at)
+      return
+    }
+    case 'checkModuleTransaction(address,uint256,bytes,uint8,address)': {
+      const sub: ExecCall = { to: ethers.getAddress(args[0]), value: BigInt(args[1]), data: String(args[2]).toLowerCase(), operation: opArg(args[3]) }
+      const module = ethers.getAddress(args[4])
+      hookCheck(x, frame, sub, EMPTY_CONTEXT, eqAddr(module, ZERO) ? null : module, at)
+      return
+    }
+    case 'getPolicy(address,address,bytes,uint8)':
+      opArg(args[3])
+      if (!decodeSelector(String(args[2])).ok) fault('InvalidSelector')
+      return
+    default:
+      return // views
   }
-  if (sel) {
-    const fragment = GUARD_IFACE.fragments.find((f) => f.type === 'function' && (f as ethers.FunctionFragment).selector === sel)
-    if (fragment && (fragment as ethers.FunctionFragment).constant) return
-  }
-  emptyRevert('The Policy Guard has no such function.')
 }
 
 function confirmWithEffect(x: ExecCtx, at: Where, c: Parameters<typeof confirmPolicy>[1]): void {
@@ -480,6 +660,101 @@ function confirmWithEffect(x: ExecCtx, at: Where, c: Parameters<typeof confirmPo
 }
 
 // ---------------------------------------------------------------------------------------------
+// Policies called directly
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * A policy contract called directly (not by the guard). Its code is the same, but every write is
+ * keyed by (msg.sender, safe), so it lands in a namespace of its own (`world.otherPolicyState`)
+ * and never touches the Safe's rules. `prefix` is 'safe:' when the code runs by DELEGATECALL in
+ * the Safe's storage.
+ */
+function policyCode(x: ExecCtx, policy: PolicyName, prefix: string, sender: string, call: ExecCall, at: Where): void {
+  const w = x.w
+  if (call.value > 0n) emptyRevert('Policies cannot receive ETH.')
+  const iface = POLICY_ABIS[policy]
+  const fragment = fragmentOf(iface, call.data)
+  if (!fragment) emptyRevert('This policy has no such function.')
+  const args = decodeOrRevert(iface, fragment, call.data)
+  const label = policyLabel(policy)
+  const isTheSafe = (a: unknown) => eqAddr(String(a), w.safe.address)
+  const namespace = (safeArg: unknown) => `${prefix}${ethers.getAddress(sender)}|${ethers.getAddress(String(safeArg))}`
+  const scratchFor = (ns: string): World => {
+    const scratch = structuredClone(w)
+    scratch.policyState = structuredClone(w.otherPolicyState?.[ns] ?? {})
+    return scratch
+  }
+  const save = (ns: string, state: Record<string, unknown>) => {
+    if (Object.keys(state).length === 0) return
+    ;(w.otherPolicyState ??= {})[ns] = state
+  }
+  switch (fragment.name) {
+    case 'configure': {
+      const ns = namespace(args[0])
+      const scratch = scratchFor(ns)
+      const access = '0x' + BigInt(args[1]).toString(16).padStart(64, '0')
+      POLICIES[policy].configure(scratch, access, String(args[2]).toLowerCase())
+      save(ns, scratch.policyState)
+      effect(x, at, 'note', E.policyDirect(label, who(x, sender)), `${policy}.configure called directly: namespace (${sender}, ${args[0]})`, 'info')
+      return
+    }
+    case 'checkTransaction': {
+      if (BigInt(args[4]) > 1n) emptyRevert() // enum Operation out of range
+      const ns = namespace(args[0])
+      const scratch = scratchFor(ns)
+      const module = ethers.getAddress(String(args[5]))
+      const ctx: CheckCtx = {
+        w: scratch,
+        trace: x.trace,
+        effects: [],
+        module: eqAddr(module, ZERO) ? null : module,
+        signedNonce: w.safe.nonce - 1,
+        notASafe: !isTheSafe(args[0]),
+        recurse: () => {
+          // IPolicyEngine(msg.sender).checkTransaction: the caller is not a policy engine, so the
+          // call returns nothing to decode (or reverts): an empty revert.
+          throw new Revert({ error: 'Reverted', message: 'The caller is not a policy engine, so the batch cannot be checked.' })
+        }
+      }
+      POLICIES[policy].check(ctx, {
+        safe: ethers.getAddress(String(args[0])),
+        to: ethers.getAddress(String(args[1])),
+        value: BigInt(args[2]),
+        data: String(args[3]).toLowerCase(),
+        operation: Number(args[4]) as Op,
+        context: raw(String(args[6])),
+        access: '0x' + BigInt(args[7]).toString(16).padStart(64, '0'),
+        depth: at.depth + 1
+      })
+      save(ns, scratch.policyState)
+      effect(x, at, 'note', E.policyDirect(label, who(x, sender)), `${policy}.checkTransaction called directly`, 'info')
+      return
+    }
+    case 'getRequiredSignatures':
+      // Reads ISafe(safe).getOwners() and getThreshold().
+      if (!isTheSafe(args[1])) emptyRevert('That address is not a Safe.')
+      return
+    case 'updateEpoch': {
+      const key = safenetTrustedKey()
+      const parent = args[0] as ethers.Result
+      const parentEpoch = BigInt(args[1])
+      if (prefix !== '' || !(BigInt(parent[0]) === key.x && BigInt(parent[1]) === key.y && parentEpoch === SAFENET_EPOCH)) {
+        fault('UnknownParent')
+      }
+      if (!(BigInt(args[2]) > parentEpoch)) fault('EpochNotAdvancing')
+      const next = args[4] as ethers.Result
+      if (!onCurve(BigInt(next[0]), BigInt(next[1]))) fault('NotOnCurve')
+      const sig = args[5] as ethers.Result
+      const r = sig[0] as ethers.Result
+      fault(frostVerifyFailure(BigInt(r[0]), BigInt(r[1]), BigInt(sig[1])))
+      return
+    }
+    default:
+      return // views and pure functions
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
 // OpenZeppelin ERC-20 v5
 // ---------------------------------------------------------------------------------------------
 
@@ -487,11 +762,10 @@ function tokenCall(x: ExecCtx, from: string, call: ExecCall, at: Where): void {
   const w = x.w
   const token = call.to
   if (call.value > 0n) emptyRevert(`${symbolOf(w, token)} does not accept ETH.`)
-  const sel = ethers.dataLength(call.data) >= 4 ? call.data.slice(0, 10) : null
-  const fragment = sel ? ERC20_IFACE.fragments.find((f) => f.type === 'function' && (f as ethers.FunctionFragment).selector === sel) : undefined
+  const fragment = fragmentOf(ERC20_IFACE, call.data)
   if (!fragment) emptyRevert(`${symbolOf(w, token)} has no such function.`)
-  const fn = (fragment as ethers.FunctionFragment).name
-  const args = decodeOrRevert(ERC20_IFACE, fn, call.data)
+  const fn = fragment.name
+  const args = decodeOrRevert(ERC20_IFACE, fragment, call.data)
   const fmt = (v: bigint) => formatAsset(w, token, v)
   switch (fn) {
     case 'transfer': {
@@ -520,21 +794,41 @@ function tokenCall(x: ExecCtx, from: string, call: ExecCall, at: Where): void {
       const dst = ethers.getAddress(args[1])
       const amount = BigInt(args[2])
       const current = allowanceOf(w, token, src, from)
-      if (current < MAX_UINT) {
-        if (current < amount) {
-          fault('ERC20InsufficientAllowance', {
-            args: { spender: from, allowance: current.toString(), needed: amount.toString() },
-            message: `${who(x, src)} allowed ${who(x, from)} to take ${fmt(current)}, not ${fmt(amount)}.`
-          })
+      try {
+        ozTransferFromChecks(src, dst, amount, from, current, balanceOf(w, token, src))
+      } catch (e) {
+        if (e instanceof Revert && e.fault.error === 'ERC20InsufficientAllowance') {
+          e.fault.message = `${who(x, src)} allowed ${who(x, from)} to take ${fmt(current)}, not ${fmt(amount)}.`
         }
-        setAllowance(w, token, src, from, current - amount)
+        throw e
       }
+      if (current < MAX_UINT) setAllowance(w, token, src, from, current - amount)
       ozTransfer(x, at, token, src, dst, amount)
       effect(x, at, 'balance', E.moved(who(x, src), who(x, dst), fmt(amount)), `${symbolOf(w, token)}.transferFrom(${src}, ${dst}, ${amount})`)
       return
     }
     default:
       return // views
+  }
+}
+
+/**
+ * OpenZeppelin 5.3 transferFrom order (ERC20.sol 158-163, 300-307, 281): _spendAllowance first
+ * (ERC20InsufficientAllowance, then _approve: ERC20InvalidApprover for from == 0, unless the
+ * allowance is unlimited), then _transfer (ERC20InvalidSender, ERC20InvalidReceiver,
+ * ERC20InsufficientBalance).
+ */
+function ozTransferFromChecks(src: string, dst: string, amount: bigint, spender: string, allowance: bigint, balance: bigint): void {
+  if (allowance < MAX_UINT) {
+    if (allowance < amount) {
+      fault('ERC20InsufficientAllowance', { args: { spender, allowance: allowance.toString(), needed: amount.toString() } })
+    }
+    if (eqAddr(src, ZERO)) fault('ERC20InvalidApprover', { args: { approver: ZERO } })
+  }
+  if (eqAddr(src, ZERO)) fault('ERC20InvalidSender', { args: { sender: ZERO } })
+  if (eqAddr(dst, ZERO)) fault('ERC20InvalidReceiver', { args: { receiver: ZERO } })
+  if (balance < amount) {
+    fault('ERC20InsufficientBalance', { args: { sender: src, balance: balance.toString(), needed: amount.toString() } })
   }
 }
 
@@ -559,9 +853,8 @@ function ozTransfer(x: ExecCtx, _at: Where, token: string, from: string, to: str
 function wethCall(x: ExecCtx, from: string, call: ExecCall, at: Where): void {
   const w = x.w
   const weth = call.to
-  const sel = ethers.dataLength(call.data) >= 4 ? call.data.slice(0, 10) : null
-  const fragment = sel ? WETH_IFACE.fragments.find((f) => f.type === 'function' && (f as ethers.FunctionFragment).selector === sel) : undefined
-  const fn = fragment ? (fragment as ethers.FunctionFragment).name : 'fallback'
+  const fragment = fragmentOf(WETH_IFACE, call.data)
+  const fn = fragment ? fragment.name : 'fallback'
   const fmt = (v: bigint) => formatAsset(w, weth, v)
   if (fn === 'deposit' || fn === 'fallback') {
     setBalance(w, weth, from, balanceOf(w, weth, from) + call.value)
@@ -572,7 +865,7 @@ function wethCall(x: ExecCtx, from: string, call: ExecCall, at: Where): void {
     return
   }
   if (call.value > 0n) emptyRevert(`WETH ${fn} does not accept ETH.`)
-  const args = decodeOrRevert(WETH_IFACE, fn, call.data)
+  const args = decodeOrRevert(WETH_IFACE, fragment!, call.data)
   switch (fn) {
     case 'withdraw': {
       const wad = BigInt(args[0])
@@ -612,36 +905,62 @@ function wethCall(x: ExecCtx, from: string, call: ExecCall, at: Where): void {
   }
 }
 
+function multiSendBytes(data: string): string {
+  const fragment = fragmentOf(MULTISEND_IFACE, data)
+  const args = fragment ? decodeLax(MULTISEND_IFACE, fragment, data) : null
+  if (!args) emptyRevert('The batch data cannot be read.')
+  return String(args[0])
+}
+
 // ---------------------------------------------------------------------------------------------
 // MultiSendCallOnly
 // ---------------------------------------------------------------------------------------------
 
-/** Runs the packed batch with `frame` as address(this): the Safe under DELEGATECALL, MultiSend under CALL. */
+/**
+ * Runs the packed batch with `frame` as address(this): the Safe under DELEGATECALL, MultiSend
+ * under CALL. Follows MultiSendCallOnly's assembly exactly: the cursor starts at 0x20 past the
+ * length word and the loop runs while it is below the byte length, so a tail of 32 bytes or fewer
+ * is never executed. Reads past the end see zeroed memory.
+ */
 function runBatch(x: ExecCtx, frame: string, packed: string, at: Where): void {
   const bytes = ethers.getBytes(packed)
+  const len = bytes.length
+  const read = (from: number, n: number): Uint8Array => {
+    const out = new Uint8Array(n)
+    if (from < len) out.set(bytes.slice(from, Math.min(len, from + n)))
+    return out
+  }
+  const MAX_DATA = 1 << 20 // beyond this, memory expansion runs out of gas
   let i = 0
   let step = 0
-  while (i < bytes.length) {
-    if (i + 85 > bytes.length) emptyRevert('The batch data is cut short.')
-    const op = bytes[i]
-    let to = ethers.getAddress(ethers.hexlify(bytes.slice(i + 1, i + 21)))
+  while (i + 32 < len) {
+    const op = read(i, 1)[0]
+    let to = ethers.getAddress(ethers.hexlify(read(i + 1, 20)))
     if (eqAddr(to, ZERO)) to = frame
-    const value = BigInt(ethers.hexlify(bytes.slice(i + 21, i + 53)))
-    const lenBig = BigInt(ethers.hexlify(bytes.slice(i + 53, i + 85)))
-    if (lenBig > BigInt(bytes.length - i - 85)) emptyRevert('The batch data is cut short.')
-    const len = Number(lenBig)
-    const data = ethers.hexlify(bytes.slice(i + 85, i + 85 + len))
+    const value = BigInt(ethers.hexlify(read(i + 21, 32)))
+    const lenBig = BigInt(ethers.hexlify(read(i + 53, 32)))
     const sub: Where = { depth: at.depth + 1, subTx: step }
+    if (lenBig > BigInt(MAX_DATA)) {
+      const err = new Revert({ error: 'Reverted', message: 'A batch step claims more data than the batch holds, so the call runs out of gas.' })
+      traced.add(err)
+      event(x, sub, 'exec.revert', 'fail', T.execRevert('MultiSend'), { detail: err.fault.message, tech: `dataLength ${lenBig}: out of gas` })
+      throw err
+    }
+    const n = Number(lenBig)
+    const data = ethers.hexlify(read(i + 85, n))
     if (op !== 0) {
       event(x, sub, 'exec.call', 'info', T.execDelegate(describeCall(x.w, to, value, data, 1)))
       const err = new Revert({ error: 'Reverted', message: 'MultiSend (call only) refuses delegatecalls inside a batch.' })
       traced.add(err)
-      event(x, sub, 'exec.revert', 'fail', T.execStepDelegate, { tech: 'MultiSendCallOnly: case 1 { revert(0, 0) }' })
+      event(x, sub, 'exec.revert', 'fail', T.execStepDelegate, { tech: `MultiSendCallOnly: operation ${op} is not a call: revert` })
       throw err
     }
     callFrom(x, frame, { to, value, data, operation: 0 }, sub)
-    i += 85 + len
+    i += 85 + n
     step++
+  }
+  if (i < len) {
+    event(x, { depth: at.depth + 1 }, 'exec.effect', 'info', T.execBatchTailSkipped(len - i), { tech: 'MultiSendCallOnly: lt(i, length) is false for the last 32 bytes' })
   }
 }
 
@@ -658,13 +977,7 @@ function delegateFromSafe(x: ExecCtx, call: ExecCall, at: Where): void {
   try {
     if (kind === 'multisend') {
       if (call.data.slice(0, 10) !== SELECTORS.multiSend) emptyRevert('MultiSend only understands multiSend.')
-      let packed: string
-      try {
-        packed = String(MULTISEND_IFACE.decodeFunctionData('multiSend', call.data)[0])
-      } catch {
-        emptyRevert('The batch data cannot be read.')
-      }
-      runBatch(x, w.safe.address, packed, at)
+      runBatch(x, w.safe.address, multiSendBytes(call.data), at)
       return
     }
     delegateOther(x, call, at, kind)
@@ -689,61 +1002,38 @@ function delegateFromSafe(x: ExecCtx, call: ExecCall, at: Where): void {
  */
 function delegateOther(x: ExecCtx, call: ExecCall, at: Where, kind: ReturnType<typeof kindOf>): void {
   const sender = x.executor
-  const sel = ethers.dataLength(call.data) >= 4 ? call.data.slice(0, 10) : null
-  const find = (iface: ethers.Interface) =>
-    sel ? (iface.fragments.find((f) => f.type === 'function' && (f as ethers.FunctionFragment).selector === sel) as ethers.FunctionFragment | undefined) : undefined
   switch (kind) {
     case 'safe':
-      return safeCall(x, x.w.safe.address, { ...call, value: 0n }, at, sender)
+      return safeCall(x, { ...call, value: 0n }, at, sender)
     case 'token': {
-      const f = find(ERC20_IFACE)
+      const f = fragmentOf(ERC20_IFACE, call.data)
       if (!f) emptyRevert('That token has no such function.')
-      const args = decodeOrRevert(ERC20_IFACE, f.name, call.data)
+      const args = decodeOrRevert(ERC20_IFACE, f, call.data)
+      // OpenZeppelin code on the Safe's storage: every balance and allowance it reads is zero.
       if (f.name === 'transfer') {
         if (eqAddr(args[0], ZERO)) fault('ERC20InvalidReceiver', { args: { receiver: ZERO } })
         if (BigInt(args[1]) > 0n) fault('ERC20InsufficientBalance', { args: { sender, balance: '0', needed: String(args[1]) } })
       } else if (f.name === 'approve') {
         if (eqAddr(args[0], ZERO)) fault('ERC20InvalidSpender', { args: { spender: ZERO } })
       } else if (f.name === 'transferFrom') {
-        if (BigInt(args[2]) > 0n) fault('ERC20InsufficientAllowance', { args: { spender: sender, allowance: '0', needed: String(args[2]) } })
-        if (eqAddr(args[0], ZERO)) fault('ERC20InvalidSender', { args: { sender: ZERO } })
-        if (eqAddr(args[1], ZERO)) fault('ERC20InvalidReceiver', { args: { receiver: ZERO } })
+        ozTransferFromChecks(String(args[0]), String(args[1]), BigInt(args[2]), sender, 0n, 0n)
       }
       return
     }
     case 'weth': {
-      const f = find(WETH_IFACE)
+      const f = fragmentOf(WETH_IFACE, call.data)
       if (!f || f.name === 'deposit') return
-      const args = decodeOrRevert(WETH_IFACE, f.name, call.data)
+      const args = decodeOrRevert(WETH_IFACE, f, call.data)
       if (f.name === 'withdraw' && BigInt(args[0]) > 0n) emptyRevert()
       if (f.name === 'transfer' && BigInt(args[1]) > 0n) emptyRevert()
       if (f.name === 'transferFrom' && BigInt(args[2]) > 0n) emptyRevert()
       return
     }
-    case 'guard': {
-      if (sel === SELECTORS.configureImmediately) {
-        let configs
-        try {
-          configs = decodeConfigurations(GUARD_IFACE, 'configureImmediately', call.data)
-        } catch {
-          emptyRevert()
-        }
-        const scratch = structuredClone(x.w)
-        for (const c of configs) confirmPolicy(scratch, c, null)
-        return
-      }
-      if (sel === SELECTORS.requestConfiguration) return
-      if (sel === SELECTORS.invalidateRoot || sel === SELECTORS.applyConfiguration) fault('RootNotConfigured')
-      const f = find(GUARD_IFACE)
-      if (f && f.constant) return
-      emptyRevert('The Policy Guard has no such function.')
-      return
-    }
-    case 'policy': {
-      const f = find(POLICY_IFACE)
-      if (!f) emptyRevert('This policy has no such function.')
-      return
-    }
+    case 'guard':
+      // Guard code on the Safe's storage, keyed by msg.sender (the executor), address(this) the Safe.
+      return guardCode(x, { ns: `safe:${ethers.getAddress(sender)}`, self: x.w.safe.address, sender }, call.data, at)
+    case 'policy':
+      return policyCode(x, policyAt(x.w, call.to)!, 'safe:', sender, call, at)
     case 'multisend':
       return
     case 'module':

@@ -942,6 +942,82 @@ describe('§3 / §9 batches and guard changes', () => {
 })
 
 // ---------------------------------------------------------------------------------------------
+// Differential-test findings (the fixtures in conformance/fixtures/fuzz pin the chain outcomes)
+// ---------------------------------------------------------------------------------------------
+
+describe('differential-test findings', () => {
+  const open = () => createWorld(base({ guards: { transaction: false, module: false } }))
+  const iface = (sig: string) => new ethers.Interface([sig])
+
+  it('a policy called directly works in its own namespace, never the Safe rules', () => {
+    const w = createWorld(base({ guards: { transaction: false }, rules: [{ target: 'Dave', selector: 'none', policy: 'OneTimeAllowPolicy', config: { granted: false } }] }))
+    const access = accessSelector(addr('Dave'), '0x00000000', 0)
+    const configure = iface('function configure(address,uint256,bytes)').encodeFunctionData('configure', [addr('Safe'), access, coder.encode(['bool'], [true])])
+    const check = iface('function checkTransaction(address,address,uint256,bytes,uint8,address,bytes,uint256)').encodeFunctionData('checkTransaction', [addr('Safe'), addr('Dave'), 0, '0x', 0, ethers.ZeroAddress, '0x', access])
+    blocked(w, { to: 'OneTimeAllowPolicy', data: check }, 'execution:Unauthorized')
+    const granted = ok(w, { to: 'OneTimeAllowPolicy', data: configure })
+    assert.deepEqual(granted.policyState, w.policyState, 'the Safe namespace is untouched')
+    assert.ok(granted.otherPolicyState && Object.keys(granted.otherPolicyState).length === 1)
+    const spent = ok(granted, { to: 'OneTimeAllowPolicy', data: check })
+    blocked(spent, { to: 'OneTimeAllowPolicy', data: check }, 'execution:Unauthorized')
+    // The Safe's own grant (false) still applies to the guarded rule.
+    assert.deepEqual(JSON.parse(JSON.stringify(spent)), spent, 'plain JSON')
+    blocked(w, { to: 'OneTimeAllowPolicy', data: configure.slice(0, 74) }, 'execution:Reverted')
+    blocked(w, { to: 'CoSignerPolicy', data: iface('function configure(address,uint256,bytes)').getFunction('configure')!.selector + '00'.repeat(32) + '00'.repeat(31) + '4c' }, 'execution:Reverted')
+  })
+
+  it('guard hooks called directly behave as on chain', () => {
+    const g = new ethers.Interface([
+      'function checkAfterExecution(bytes32,bool)',
+      'function checkAfterModuleExecution(bytes32,bool)',
+      'function checkTransaction(address,address,uint256,bytes,uint8,bytes)',
+      'function checkTransaction(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes,address)'
+    ])
+    const w = open()
+    blocked(w, { to: 'PolicyGuard', data: g.encodeFunctionData('checkAfterExecution', [ethers.ZeroHash, false]) }, 'execution:ExecutionFailed')
+    ok(w, { to: 'PolicyGuard', data: g.encodeFunctionData('checkAfterExecution', [ethers.ZeroHash, true]) })
+    blocked(w, { to: 'PolicyGuard', data: g.encodeFunctionData('checkAfterModuleExecution', [ethers.ZeroHash, false]) }, 'execution:ModuleExecutionFailed')
+    blocked(w, { to: 'PolicyGuard', data: g.encodeFunctionData('checkTransaction(address,address,uint256,bytes,uint8,bytes)', [addr('Safe'), addr('Dave'), 0, '0x', 0, '0x']) }, 'execution:NotChecking')
+    const hook = (to: string, gasPrice: number) =>
+      g.encodeFunctionData('checkTransaction(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes,address)', [addr(to), 0, '0x', 0, 0, 0, gasPrice, ethers.ZeroAddress, ethers.ZeroAddress, '0x', ethers.ZeroAddress])
+    blocked(w, { to: 'PolicyGuard', data: hook('Dave', 1) }, 'execution:NonZeroGasPrice')
+    blocked(w, { to: 'PolicyGuard', data: hook('Dave', 0) }, 'execution:AccessDenied(null)')
+  })
+
+  it('guard roots requested by another caller live in their own namespace', () => {
+    const w = createWorld(base({ rules: [ALLOW_ALL] }))
+    const request = { to: 'PolicyGuard', call: { fn: 'requestConfiguration', configurations: [ALLOW_ALL] } }
+    const r = sim(w, { to: 'MultiSend', call: { fn: 'multiSend', batch: [request] } })
+    assert.equal(r.ok, true, chain(r.error))
+    assert.deepEqual(r.world.roots, {})
+    const ns = `guard:${addr('MultiSend')}`
+    assert.equal(r.world.otherRoots?.[ns]?.[configurationRoot(w, [ALLOW_ALL])], START_TIME + 3600)
+    // The Safe's own namespace is separate: the Safe can request the same root.
+    ok(r.world, request)
+  })
+
+  it('gas price with no guard: refund note, or GS011 with no ETH', () => {
+    const w = createWorld(base({ guards: { transaction: false } }))
+    const r = sim(w, { to: 'Dave', value: '1', gasPrice: '1' })
+    assert.equal(r.ok, true)
+    assert.ok(r.effects.some((e) => e.kind === 'note' && e.title === 'The Safe pays a gas refund to the relayer'))
+    const broke = createWorld({ balances: { USDC: '1' }, guards: { transaction: false } })
+    blocked(broke, { to: 'Dave', gasPrice: '1' }, 'execution:GS011')
+    const starved = sim(w, { ...usdc('Dave', '1'), gasPrice: '1' })
+    assert.equal(chain(starved.error), 'execution:CallFailed')
+    assert.equal(starved.world.safe.nonce, 1)
+  })
+
+  it('MultiSendPolicy reads any context as its positional list', () => {
+    const w = createWorld(base({ rules: [MULTISEND_RULE, ALLOW_ALL, { target: 'Erin', selector: 'none', policy: 'SafenetPolicy' }] }))
+    ok(w, batch([{ to: 'Dave', value: '1' }], { context: { type: 'ownerSignatures', signers: [] } }))
+    ok(w, batch([{ to: 'Dave', value: '1' }], { context: { type: 'attestation', key: 'trusted', valid: true } }))
+    blocked(w, batch([{ to: 'Erin', value: '1' }], { context: { type: 'attestation', key: 'trusted', valid: true } }), 'guard:PolicyReverted(MultiSendPolicy) > PolicyReverted(SafenetPolicy) > MalformedAttestation')
+    blocked(w, batch([{ to: 'Dave', value: '1' }], { context: cosig() }), 'guard:PolicyReverted(MultiSendPolicy) > Reverted')
+  })
+})
+
+// ---------------------------------------------------------------------------------------------
 // §11 Trace and copy
 // ---------------------------------------------------------------------------------------------
 
@@ -949,7 +1025,7 @@ describe('§11 trace and copy', () => {
   const IDS = new Set([
     'safe.signatures', 'safe.nonce', 'safe.noGuard', 'safe.module', 'safe.context', 'guard.gasPrice', 'guard.safeTxGas',
     'engine.allowedCall', 'engine.guardTarget', 'engine.selector', 'engine.lookup.exact', 'engine.lookup.fallback',
-    'engine.lookup.none', 'policy.check', 'policy.state', 'multisend.step', 'exec.call', 'exec.effect', 'exec.revert',
+    'engine.lookup.none', 'policy.check', 'policy.state', 'multisend.step', 'exec.call', 'exec.effect', 'exec.revert', 'exec.configure',
     'guard.after', 'commit', 'rollback'
   ])
 

@@ -8,7 +8,8 @@ import { ethers } from 'ethers'
 
 import type { Op } from '../access.ts'
 import { Revert, type Fault } from '../errors.ts'
-import type { ContextSpec, Effect, PolicyName, TraceEvent, TraceStatus, World } from '../types.ts'
+import type { CtxBytes } from '../context.ts'
+import type { Effect, PolicyName, TraceEvent, TraceStatus, World } from '../types.ts'
 
 export interface SubCall {
   to: string
@@ -26,8 +27,10 @@ export interface CheckCtx {
   module: string | null
   /** The nonce the owners signed (`ISafe.nonce() - 1` during the guard check). */
   signedNonce: number
+  /** True when the policy is called directly with a `safe` that is not the Safe: ISafe(safe) calls revert. */
+  notASafe?: boolean
   /** Recursive engine check (`IPolicyEngine(msg.sender).checkTransaction`), used by MultiSendPolicy. */
-  recurse(call: SubCall, context: ContextSpec, depth: number, subTx: number): void
+  recurse(call: SubCall, context: CtxBytes, depth: number, subTx: number): void
 }
 
 export interface CheckArgs {
@@ -36,7 +39,8 @@ export interface CheckArgs {
   value: bigint
   data: string
   operation: Op
-  context: ContextSpec
+  /** The policy context bytes (see context.ts). */
+  context: CtxBytes
   access: string
   depth: number
   subTx?: number
@@ -162,19 +166,4 @@ export function txIdentity(w: World, call: { to: string; value: bigint; data: st
       nonce
     }
   )
-}
-
-/** Approximate byte length of a symbolic context once the harness encodes it. */
-export function contextLength(ctx: ContextSpec): number {
-  if (ctx === null || ctx === undefined) return 0
-  switch (ctx.type) {
-    case 'cosignature':
-      return 65
-    case 'ownerSignatures':
-      return 65 * ctx.signers.length
-    case 'attestation':
-      return 256
-    case 'batch':
-      return ctx.items.reduce((n, item) => n + 32 + contextLength(item), 0)
-  }
 }

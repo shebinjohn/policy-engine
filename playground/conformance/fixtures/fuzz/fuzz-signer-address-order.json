@@ -5,6 +5,7 @@
   "title": "Signer Order Is Address Order",
   "summary": "MODEL LIMIT. The Safe checks the first threshold signatures in address order (Safe.sol 338); playground and harness addresses differ (chain: Carol < Erin < Dave < Alice < CoSigner < Bob < Mallory), so extra or context-tail signers fall differently.",
   "lesson": "Found by differential fuzzing; expectations are the on-chain outcome. Engine: GS026, GS026, ok.",
+  "engine": "The outcome depends on the order of the signers' real addresses, which differ between the playground and the Hardhat run (the Safe checks signatures in ascending address order).",
   "setup": {
     "balances": {
       "ETH": "5"

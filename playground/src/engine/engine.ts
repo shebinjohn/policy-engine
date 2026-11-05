@@ -18,7 +18,8 @@ import { SELECTORS, type Configuration } from './catalog.ts'
 import { Revert, type Fault } from './errors.ts'
 import { describeAccess, describeConfigData, describeRule, E, functionTech, policyLabel, T } from './messages.ts'
 import { POLICIES, type CheckCtx, type SubCall } from './policies/index.ts'
-import type { ContextSpec, Effect, PolicyName, TableEntry, TraceEvent, TraceStatus, World } from './types.ts'
+import type { CtxBytes } from './context.ts'
+import type { Effect, PolicyName, TableEntry, TraceEvent, TraceStatus, World } from './types.ts'
 
 export interface Matched {
   access: string
@@ -86,7 +87,7 @@ const CONFIG_SELECTORS = new Set<string>([
 export function checkTransaction(
   ectx: EngineCtx,
   call: SubCall,
-  context: ContextSpec,
+  context: CtxBytes,
   depth: number,
   subTx?: number
 ): Matched | null {
