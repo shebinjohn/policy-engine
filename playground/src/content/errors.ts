@@ -157,9 +157,9 @@ const list: Entry[] = [
     source: 'Policy Guard',
     title: 'Instant Changes Are Off',
     plain:
-      'Instant rule changes only work before the Policy Guard is installed. It already guards this Safe, as transaction guard or module guard, so every change goes through the waiting period.',
-    fix: 'Ask for the change and apply it after the wait.',
-    tech: 'GuardAlreadyEnabled(): SafePolicyGuard.configureImmediately when either Safe guard slot holds this guard.'
+      'Instant rule changes only work before the Policy Guard is installed. It already guards this Safe, as transaction guard or module guard, even if an earlier step of the same batch just installed it. From here, every change goes through the waiting period.',
+    fix: 'When hardening in one batch, set the rules before installing either guard. After hardening, ask for the change and apply it after the wait.',
+    tech: 'GuardAlreadyEnabled(): SafePolicyGuard.configureImmediately when either Safe guard slot holds this guard. The slots are read live, so an earlier set*Guard step in the same batch triggers it.'
   },
   {
     name: 'ExecutionFailed',

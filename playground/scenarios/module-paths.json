@@ -1,7 +1,7 @@
 {
   "id": "module-paths",
   "chapter": "modules-and-guards",
-  "order": 16,
+  "order": 18,
   "title": "Owners and Modules",
   "summary": "The same rules check owners and modules, but some policies accept only one of the two.",
   "lesson": "Owners and modules go through the same rules, and policies can tell them apart. The module allowlist refuses owners, the signature policies refuse modules, and no module can change the rules.",

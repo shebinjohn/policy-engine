@@ -1,28 +1,72 @@
 {
   "id": "delayed-change",
   "chapter": "changing-the-rules",
-  "order": 19,
+  "order": 20,
   "title": "The Waiting Period",
-  "summary": "A new rule is requested, refused while it waits, and applied after an hour.",
+  "summary": "A new rule is requested inside a payment batch, refused while it waits, and applied after an hour.",
   "lesson": "After hardening, every rule change is requested first and applied after the waiting period, one hour here. The wait gives the owners time to spot and cancel a change they did not expect.",
   "readme": "setup-with-safe",
   "setup": {
-    "rules": []
+    "balances": {
+      "USDC": "10000"
+    },
+    "rules": [
+      {
+        "target": "MultiSend",
+        "selector": "multiSend",
+        "operation": "DELEGATECALL",
+        "policy": "MultiSendPolicy",
+        "note": "Lets batches through, checking every step"
+      },
+      {
+        "target": "USDC",
+        "selector": "transfer",
+        "policy": "ERC20TransferPolicy",
+        "config": {
+          "recipients": [
+            {
+              "account": "Dave",
+              "permission": "ALWAYS"
+            }
+          ]
+        },
+        "note": "USDC goes to Dave only"
+      }
+    ]
   },
   "steps": [
     {
       "do": "tx",
-      "label": "Ask for a rule that allows adding modules",
+      "label": "Pay Dave and ask for a new rule in one batch",
       "tx": {
-        "to": "PolicyGuard",
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
         "call": {
-          "fn": "requestConfiguration",
-          "configurations": [
+          "fn": "multiSend",
+          "batch": [
             {
-              "target": "Safe",
-              "selector": "enableModule",
-              "policy": "AllowPolicy",
-              "note": "Owners may add modules"
+              "to": "USDC",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Dave",
+                  "500"
+                ]
+              }
+            },
+            {
+              "to": "PolicyGuard",
+              "call": {
+                "fn": "requestConfiguration",
+                "configurations": [
+                  {
+                    "target": "Safe",
+                    "selector": "enableModule",
+                    "policy": "AllowPolicy",
+                    "note": "Owners may add modules"
+                  }
+                ]
+              }
             }
           ]
         }
@@ -30,7 +74,14 @@
       "expect": {
         "ok": true
       },
-      "note": "Asking for a change needs no rule. It is always allowed."
+      "note": "Asking for a rule change needs no rule, even as a step in a batch. The payment step is checked as usual. The new rule, allowing modules to be added, now waits.",
+      "expectState": {
+        "balances": {
+          "Dave": {
+            "USDC": "500"
+          }
+        }
+      }
     },
     {
       "do": "tx",

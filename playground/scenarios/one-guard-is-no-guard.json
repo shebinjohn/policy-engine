@@ -3,15 +3,15 @@
   "chapter": "modules-and-guards",
   "order": 17,
   "title": "Half a Guard",
-  "summary": "With only the transaction guard installed, a module ignores every rule and then removes the guard.",
-  "lesson": "The Policy Guard must be installed twice: as the transaction guard and as the module guard. With only the transaction guard, any enabled module can do anything, including switching the guard off without a wait. With only the module guard, owner transactions go unchecked.",
+  "summary": "The transaction guard goes in first and the module guard is then refused. Meanwhile a module ignores every rule and removes the guard.",
+  "lesson": "Install both guards in one batch, or the module guard first. Once the transaction guard is in, adding the module guard is a checked call that needs a rule. Until it is in, any enabled module skips every rule, and can even switch the guard off without a wait.",
   "readme": "setup-with-safe",
   "setup": {
     "modules": [
       "AllowanceModule"
     ],
     "guards": {
-      "transaction": true,
+      "transaction": false,
       "module": false
     },
     "balances": {
@@ -37,6 +37,47 @@
   "steps": [
     {
       "do": "tx",
+      "label": "Install the transaction guard",
+      "tx": {
+        "to": "Safe",
+        "call": {
+          "fn": "setGuard",
+          "args": [
+            "PolicyGuard"
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "No guard is installed yet, so this runs unchecked.",
+      "expectState": {
+        "txGuard": "PolicyGuard",
+        "moduleGuard": null
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Install the module guard",
+      "tx": {
+        "to": "Safe",
+        "call": {
+          "fn": "setModuleGuard",
+          "args": [
+            "PolicyGuard"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "AccessDenied",
+        "policy": null
+      },
+      "note": "The transaction guard now checks every owner transaction, this one included, and no rule allows setting the module guard. Fixing that is a rule change, with the waiting period."
+    },
+    {
+      "do": "tx",
       "label": "The owners pay Mallory 4000 USDC",
       "tx": {
         "to": "USDC",
@@ -56,7 +97,8 @@
         "reason": {
           "error": "Unauthorized"
         }
-      }
+      },
+      "note": "Owner transactions are checked."
     },
     {
       "do": "tx",
@@ -76,7 +118,7 @@
       "expect": {
         "ok": true
       },
-      "note": "No module guard is installed, so module transactions skip every rule.",
+      "note": "Module transactions are not: there is no module guard, so they skip every rule.",
       "expectState": {
         "balances": {
           "Mallory": {
@@ -102,35 +144,10 @@
       "expect": {
         "ok": true
       },
-      "note": "No rule, no waiting period. The module simply switches the guard off.",
+      "note": "No rule, no waiting period. The module simply switches the guard off, and now nothing checks the owners either.",
       "expectState": {
         "txGuard": null,
         "moduleGuard": null
-      }
-    },
-    {
-      "do": "tx",
-      "label": "The owners pay Mallory 4000 USDC",
-      "tx": {
-        "to": "USDC",
-        "call": {
-          "fn": "transfer",
-          "args": [
-            "Mallory",
-            "4000"
-          ]
-        }
-      },
-      "expect": {
-        "ok": true
-      },
-      "note": "Now nothing checks the owners either.",
-      "expectState": {
-        "balances": {
-          "Mallory": {
-            "USDC": "8000"
-          }
-        }
       }
     }
   ]

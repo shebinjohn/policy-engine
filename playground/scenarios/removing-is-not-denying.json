@@ -1,7 +1,7 @@
 {
   "id": "removing-is-not-denying",
   "chapter": "changing-the-rules",
-  "order": 21,
+  "order": 22,
   "title": "Removing Is Not Denying",
   "summary": "The team removes the USDC rule to stop payments. USDC then falls to the permissive catch-all.",
   "lesson": "Removing a rule does not block anything: matching calls fall back to the catch-all. To block a call whatever the catch-all says, give its rule the Always Deny policy.",

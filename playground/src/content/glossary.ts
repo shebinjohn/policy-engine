@@ -80,8 +80,8 @@ export const GLOSSARY: Term[] = [
   {
     term: 'Hardening',
     plain:
-      'Setting up the rules while no guard is installed, then installing the Policy Guard in both slots: the module guard first, or both in one batch. After that, rules change only through the waiting period.',
-    tech: 'configureImmediately, then setModuleGuard before setGuard. Once the transaction guard is set, a separate setModuleGuard is a checked call and needs a rule.'
+      'Turning on the Policy Guard. The safe way is one batch sent while no guard is installed: set the rules first, then install both guards, so there is never a moment with only one. If the guards go in one at a time, the module guard goes first. Afterwards, rules change only through the waiting period.',
+    tech: 'MultiSend batch [configureImmediately(rules), setModuleGuard(PolicyGuard), setGuard(PolicyGuard)] with no guard installed. configureImmediately must come first: it reverts GuardAlreadyEnabled once either slot holds the guard. Separately, setModuleGuard after setGuard is a checked call that needs a rule.'
   },
   {
     term: 'Policy',

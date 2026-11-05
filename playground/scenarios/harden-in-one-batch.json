@@ -1,0 +1,258 @@
+{
+  "id": "harden-in-one-batch",
+  "chapter": "modules-and-guards",
+  "order": 16,
+  "title": "Harden in One Batch",
+  "summary": "One batch sets the rules and installs both guards. In the wrong order the whole batch fails; in the right order every path is checked from then on.",
+  "lesson": "Harden a Safe with one batch: set the rules first, then install both guards. One batch leaves no moment with only one guard in place, and the rules must come first because instant rule changes stop working once either guard is in.",
+  "readme": "setup-with-safe",
+  "setup": {
+    "modules": [
+      "AllowanceModule"
+    ],
+    "guards": {
+      "transaction": false,
+      "module": false
+    },
+    "balances": {
+      "ETH": "5",
+      "USDC": "10000"
+    },
+    "rules": []
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "Install a guard, then set the rules, in one batch",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "Safe",
+              "call": {
+                "fn": "setGuard",
+                "args": [
+                  "PolicyGuard"
+                ]
+              }
+            },
+            {
+              "to": "PolicyGuard",
+              "call": {
+                "fn": "configureImmediately",
+                "configurations": [
+                  {
+                    "target": "MultiSend",
+                    "selector": "multiSend",
+                    "operation": "DELEGATECALL",
+                    "policy": "MultiSendPolicy",
+                    "note": "Lets batches through, checking every step"
+                  },
+                  {
+                    "target": "USDC",
+                    "selector": "transfer",
+                    "policy": "ERC20TransferPolicy",
+                    "config": {
+                      "recipients": [
+                        {
+                          "account": "Dave",
+                          "permission": "ALWAYS"
+                        }
+                      ]
+                    },
+                    "note": "USDC goes to Dave only"
+                  }
+                ]
+              }
+            },
+            {
+              "to": "Safe",
+              "call": {
+                "fn": "setModuleGuard",
+                "args": [
+                  "PolicyGuard"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "GuardAlreadyEnabled"
+      },
+      "note": "No guard is installed yet, so nothing checks this batch. But the first step installs the guard, and instant rule setup only works while no guard is in place. That step fails, and the whole batch is undone with it.",
+      "expectState": {
+        "txGuard": null,
+        "moduleGuard": null
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Set the rules, then install both guards, in one batch",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "PolicyGuard",
+              "call": {
+                "fn": "configureImmediately",
+                "configurations": [
+                  {
+                    "target": "MultiSend",
+                    "selector": "multiSend",
+                    "operation": "DELEGATECALL",
+                    "policy": "MultiSendPolicy",
+                    "note": "Lets batches through, checking every step"
+                  },
+                  {
+                    "target": "USDC",
+                    "selector": "transfer",
+                    "policy": "ERC20TransferPolicy",
+                    "config": {
+                      "recipients": [
+                        {
+                          "account": "Dave",
+                          "permission": "ALWAYS"
+                        }
+                      ]
+                    },
+                    "note": "USDC goes to Dave only"
+                  }
+                ]
+              }
+            },
+            {
+              "to": "Safe",
+              "call": {
+                "fn": "setModuleGuard",
+                "args": [
+                  "PolicyGuard"
+                ]
+              }
+            },
+            {
+              "to": "Safe",
+              "call": {
+                "fn": "setGuard",
+                "args": [
+                  "PolicyGuard"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "Rules first, then both guards. The Safe goes from unguarded to fully guarded in one transaction, with no moment where only one guard is active.",
+      "expectState": {
+        "txGuard": "PolicyGuard",
+        "moduleGuard": "PolicyGuard"
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Pay Dave 500 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Dave",
+            "500"
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "expectState": {
+        "balances": {
+          "Dave": {
+            "USDC": "500"
+          }
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Pay Mallory 500 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Mallory",
+            "500"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "ERC20TransferPolicy",
+        "reason": {
+          "error": "Unauthorized"
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "The Allowance Module pays Mallory 500 USDC",
+      "tx": {
+        "path": "module",
+        "module": "AllowanceModule",
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Mallory",
+            "500"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "ERC20TransferPolicy",
+        "reason": {
+          "error": "Unauthorized"
+        }
+      },
+      "note": "The module guard is in, so module transactions follow the same rules as the owners."
+    },
+    {
+      "do": "tx",
+      "label": "Change the rules instantly",
+      "tx": {
+        "to": "PolicyGuard",
+        "call": {
+          "fn": "configureImmediately",
+          "configurations": [
+            {
+              "fallback": "CALL",
+              "policy": "AllowPolicy"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "GuardTargetDenied"
+      },
+      "note": "From now on, rules change only through the waiting period."
+    }
+  ]
+}

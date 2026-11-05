@@ -32,7 +32,7 @@ export const CHAPTERS: Chapter[] = [
     id: 'modules-and-guards',
     title: 'Modules and Guards',
     blurb:
-      'Modules send transactions without owner signatures. See which policies tell owners and modules apart, why the guard is installed twice, and why it guards itself.'
+      'Hardening installs the Policy Guard twice: as transaction guard and as module guard, ideally in one batch. See what goes wrong one at a time, which policies tell owners and modules apart, and why the guard guards itself.'
   },
   {
     id: 'changing-the-rules',

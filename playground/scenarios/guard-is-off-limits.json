@@ -1,7 +1,7 @@
 {
   "id": "guard-is-off-limits",
   "chapter": "modules-and-guards",
-  "order": 18,
+  "order": 19,
   "title": "No Shortcuts",
   "summary": "Instant rule changes are refused once the Policy Guard guards the Safe. Asking for a change always works.",
   "lesson": "Once the Policy Guard is installed in either slot, rules change only through the waiting period. No rule, not even a catch-all that allows everything, can reach the guard itself.",
