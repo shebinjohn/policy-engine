@@ -202,9 +202,9 @@
     }
   ],
   "hints": [
-    "A batch is one DELEGATECALL to MultiSend. It needs a rule of its own.",
+    "A batch is an action of its own: Run a batch. It needs a rule of its own.",
     "Always Allow on the batch would wave through whatever is inside. The Batch Checker sends each step back through your other rules.",
-    "Batch Checker (MultiSendPolicy) on MultiSend, function multiSend, operation DELEGATECALL."
+    "Batch Checker on Batches, action \"Run a batch\"."
   ],
   "solution": [
     {

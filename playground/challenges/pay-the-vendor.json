@@ -97,9 +97,9 @@
     }
   ],
   "hints": [
-    "A rule names a contract, a function and an operation. Paying in USDC is the transfer function on USDC.",
+    "A rule names a contract, an action and a call type. Paying in USDC is the action \"Send tokens\" on USDC.",
     "Always Allow on that rule would pay Mallory too. Pick the policy that checks who receives the tokens.",
-    "Recipient Allowlist (ERC20TransferPolicy) on transfer for USDC, with Dave set to ALWAYS."
+    "Recipient Allowlist on sending USDC, with Dave set to \"always\"."
   ],
   "solution": [
     {
@@ -116,6 +116,6 @@
       }
     }
   ],
-  "explain": "One rule does it: transfer on USDC, checked by a recipient allowlist with Dave on it, set to Always because he invoices every month. Once would pay the first invoice and refuse the next. You never had to block Mallory, the approval or the ETH. With no rule, they are denied by default. Why not put the allowlist on a catch-all instead? The allowlist is kept per token and learns the token from its rule; a catch-all names no token, so the Policy Guard refuses to set it up. You do not need one anyway: everything without a rule is already blocked.",
+  "explain": "One rule does it: sending USDC, checked by a Recipient Allowlist with Dave on it, set to \"always\" because he invoices every month. \"Once\" would pay the first invoice and refuse the next. You never had to block Mallory, the approval or the ETH. With no rule, they are denied by default. Why not put the allowlist on a catch-all instead? The allowlist is kept per token and learns the token from its rule; a catch-all names no token, so the Policy Guard refuses to set it up. You do not need one anyway: everything without a rule is already blocked.",
   "testMode": "sequence"
 }

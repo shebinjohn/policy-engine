@@ -292,7 +292,20 @@ describe('content: blocked scenario steps name the error', () => {
 const FORBIDDEN_WORDS =
   /\b(nonces?|selectors?|calldata|gas|hex|signatures?|revert(s|ed)?|transaction guard|module guard|GS\d{3})\b/i
 const POLICY_LABELS_RE = new RegExp(Object.values(POLICIES).map((p) => p.label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g')
-const CODE_IDENTIFIER = /\b([a-z]+[A-Z]\w*|[A-Z][a-z]+[A-Z]\w*)\b/
+const CODE_IDENTIFIER = /\b([a-z]+[A-Z]\w*|[A-Z][a-z]+[A-Z]\w*|\w+Policy|DELEGATECALL|CALL|ALWAYS|ONCE|NONE)\b/
+
+/** Simple-layer jargon in one piece of copy (SIMPLE_LAYER.md §5): banned words and code names. Policy labels are allowed. */
+function jargon(text: string, opts: { delegatecall?: boolean } = {}): string[] {
+  const out: string[] = []
+  // Policy labels are simple-layer words even where they contain a banned one.
+  const plain = text.replace(POLICY_LABELS_RE, '')
+  const banned = plain.match(FORBIDDEN_WORDS)
+  if (banned) out.push(`"${banned[0]}" is not a simple-layer word`)
+  const code = plain.match(CODE_IDENTIFIER)
+  if (code) out.push(`code name "${code[0]}"`)
+  if (!opts.delegatecall && /delegatecall/i.test(text)) out.push('"delegatecall" belongs to big idea 8 only')
+  return out
+}
 
 function sentences(text: string): string[] {
   return text.split(/(?<=[.?!])\s+/).map((t) => t.trim()).filter(Boolean)
@@ -350,14 +363,38 @@ describe('content: ideas follow the simple-layer brief', () => {
         for (const sentence of parts) if (words(sentence) > 20) problems.push(`${where}: sentence over 20 words: "${sentence}"`)
         if (/[\u2013\u2014]/.test(text)) problems.push(`${where}: dash`)
         if (/\p{Extended_Pictographic}/u.test(text)) problems.push(`${where}: emoji`)
-        // Policy labels are simple-layer words even where they contain a banned one ("Extra Owner Signatures").
-        const banned = text.replace(POLICY_LABELS_RE, '').match(FORBIDDEN_WORDS)
-        if (banned) problems.push(`${where}: "${banned[0]}" is not a simple-layer word`)
-        const code = text.match(CODE_IDENTIFIER)
-        if (code) problems.push(`${where}: code identifier "${code[0]}"`)
-        if (/delegatecall/i.test(text) && idea.order !== 8) problems.push(`${where}: delegatecall belongs to idea 8 only`)
+        for (const j of jargon(text, { delegatecall: idea.order === 8 })) problems.push(`${where}: ${j}`)
       }
       assert.deepEqual(problems, [], `\n${idea.id}:\n  ${problems.join('\n  ')}`)
+    })
+  }
+})
+
+/**
+ * The simple layer also shows challenges (Play) and scenario titles and summaries (Deep dives, "Go
+ * deeper"). Their copy keeps to the same words; steps, notes and lessons show only in Advanced.
+ */
+describe('content: simple-layer copy has no jargon', () => {
+  for (const { file, data: challenge } of challenges) {
+    it(`${challenge.id} (${file})`, () => {
+      const blocks = [
+        { where: 'title', text: challenge.title },
+        { where: 'brief', text: challenge.brief },
+        { where: 'explain', text: challenge.explain },
+        ...challenge.hints.map((text, i) => ({ where: `hints[${i}]`, text })),
+        ...challenge.tests.map((t, i) => ({ where: `tests[${i}].label`, text: t.label }))
+      ]
+      const problems = blocks.flatMap(({ where, text }) => jargon(text).map((j) => `${where}: ${j}`))
+      assert.deepEqual(problems, [], `\n${challenge.id}:\n  ${problems.join('\n  ')}`)
+    })
+  }
+  for (const { file, data: scenario } of scenarios) {
+    it(`${scenario.id} (${file})`, () => {
+      const problems = [
+        { where: 'title', text: scenario.title },
+        { where: 'summary', text: scenario.summary }
+      ].flatMap(({ where, text }) => jargon(text).map((j) => `${where}: ${j}`))
+      assert.deepEqual(problems, [], `\n${scenario.id}:\n  ${problems.join('\n  ')}`)
     })
   }
 })

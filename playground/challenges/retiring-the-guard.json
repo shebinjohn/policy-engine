@@ -2,7 +2,7 @@
   "id": "retiring-the-guard",
   "level": 5,
   "title": "Retiring the Guard",
-  "brief": "The treasury is moving to a new setup, and one day the Policy Guard must come off. All three owners will sign for that, and they want to remove both guards in one batch. The new rules are for that and nothing else. The Allowance Module is still enabled and must never remove a guard, alone or in a batch.",
+  "brief": "The treasury is moving to a new setup, and one day the Policy Guard must come off. All three owners will sign for that, and they want to turn off the guard completely, for owners and for modules, in one batch. The new rules are for that and nothing else. The Allowance Module is still enabled and must never turn off the guard, alone or in a batch.",
   "setup": {
     "modules": [
       "AllowanceModule"
@@ -21,7 +21,7 @@
   "parRules": 3,
   "tests": [
     {
-      "label": "Remove both guards in one batch, all three owners signing",
+      "label": "Turn off the guard completely in one batch, all owners sign",
       "tx": {
         "to": "MultiSend",
         "operation": "DELEGATECALL",
@@ -68,7 +68,7 @@
       "want": "pass"
     },
     {
-      "label": "Remove the transaction guard, all three owners signing",
+      "label": "Turn off the guard, all owners sign",
       "tx": {
         "to": "Safe",
         "call": {
@@ -89,7 +89,7 @@
       "want": "pass"
     },
     {
-      "label": "Remove the transaction guard with two owner signatures",
+      "label": "Turn off the guard, only two owners sign",
       "tx": {
         "to": "Safe",
         "call": {
@@ -109,7 +109,7 @@
       "want": "block"
     },
     {
-      "label": "The Allowance Module removes the transaction guard",
+      "label": "The Allowance Module turns off the guard",
       "tx": {
         "path": "module",
         "module": "AllowanceModule",
@@ -124,7 +124,7 @@
       "want": "block"
     },
     {
-      "label": "The Allowance Module removes the module guard",
+      "label": "The Allowance Module turns off the guard for modules",
       "tx": {
         "path": "module",
         "module": "AllowanceModule",
@@ -139,7 +139,7 @@
       "want": "block"
     },
     {
-      "label": "The Allowance Module removes both guards in one batch",
+      "label": "The Allowance Module turns off the guard completely in one batch",
       "tx": {
         "path": "module",
         "module": "AllowanceModule",
@@ -172,7 +172,7 @@
       "want": "block"
     },
     {
-      "label": "Send 1 ETH to Mallory, all three owners signing",
+      "label": "Send 1 ETH to Mallory, all owners sign",
       "tx": {
         "to": "Mallory",
         "value": "1",
@@ -188,7 +188,7 @@
       "want": "block"
     },
     {
-      "label": "Enable the Recovery Module, all three owners signing",
+      "label": "Switch on the Recovery Module, all owners sign",
       "tx": {
         "to": "Safe",
         "call": {
@@ -210,9 +210,9 @@
     }
   ],
   "hints": [
-    "Always Allow on removing a guard, or on the batch, lets the enabled module do it too. You need a policy that only owners can satisfy.",
-    "More Owners Sign asks for more owners than the threshold, and it refuses every module transaction.",
-    "IncreasedThresholdPolicy on setGuard and on setModuleGuard for the Safe, plus MultiSendPolicy so both can go in one batch."
+    "Always Allow on turning off the guard, or on the batch, lets the enabled module do it too. You need a policy that only owners can satisfy.",
+    "More Owners Sign asks for more owners than usual, and it refuses every module transaction.",
+    "More Owners Sign on the Safe's two guard actions, \"Change the guard\" and \"Change the guard for modules\", plus the Batch Checker so both fit in one batch."
   ],
   "solution": [
     {
@@ -238,5 +238,5 @@
       }
     }
   ],
-  "explain": "A module carries no signatures, so a policy built on signatures refuses it outright. That makes More Owners Sign an owner-only lock: every owner must sign to remove a guard, and no module ever can. The batch needs the Batch Checker, so each step still meets that lock. Always Allow on the batch would let the module remove both guards in one go. In a live Safe these rules arrive through the waiting period, and the removal follows in a later transaction."
+  "explain": "A module cannot sign, so a policy built on owners signing refuses it outright. That makes More Owners Sign an owner-only lock: every owner must sign to turn off the guard, and no module ever can. The batch needs the Batch Checker, so each step still meets that lock. Always Allow on the batch would let the module turn off the guard in one go. In a live Safe these rules arrive through the waiting period, and turning off the guard follows in a later transaction."
 }

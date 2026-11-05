@@ -3,7 +3,7 @@
   "chapter": "policies-at-work",
   "order": 11,
   "title": "More Owners Sign",
-  "summary": "Adding an owner needs every owner's signature, not just the Safe's two of three.",
+  "summary": "Adding an owner needs all owners to sign, not just the Safe's usual two of three.",
   "lesson": "The extra signatures policy raises the bar for one rule: more owner signatures than the threshold, sent along with the transaction. On a two-of-three Safe it can ask for all three.",
   "readme": "policies",
   "setup": {

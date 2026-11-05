@@ -97,9 +97,9 @@
     }
   ],
   "hints": [
-    "An exact rule on approve for USDC wins over the catch-all.",
+    "A specific rule on letting someone spend USDC wins over the catch-all.",
     "Always Deny refuses revokes too: it never looks at the amount.",
-    "Spender Allowlist (ERC20ApprovePolicy) always lets an approval of zero through. What does it allow with nobody on the list?"
+    "The Spender Allowlist always lets an approval of zero through. What does it allow with nobody on the list?"
   ],
   "solution": [
     {

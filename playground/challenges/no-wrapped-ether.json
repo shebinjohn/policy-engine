@@ -2,7 +2,7 @@
   "id": "no-wrapped-ether",
   "level": 4,
   "title": "No Wrapped Ether",
-  "brief": "Compliance says the treasury must never hold WETH. The Safe runs on a permissive catch-all, so the team denied deposit on WETH. The auditors still found WETH in the Safe. Stop all wrapping, and keep paying Dave in ETH and Erin in USDC.",
+  "brief": "Compliance says the treasury must never hold WETH. The Safe runs on a permissive catch-all, so the team denied wrapping on WETH. The auditors still found WETH in the Safe. Stop all wrapping, and keep paying Dave in ETH and Erin in USDC.",
   "setup": {
     "balances": {
       "ETH": "10",
@@ -67,7 +67,7 @@
       "want": "pass"
     },
     {
-      "label": "Wrap 1 ETH with deposit",
+      "label": "Wrap 1 ETH",
       "tx": {
         "to": "WETH",
         "value": "1",
@@ -78,7 +78,7 @@
       "want": "block"
     },
     {
-      "label": "Send 1 ETH to WETH with no calldata",
+      "label": "Send 1 ETH to WETH with nothing attached",
       "tx": {
         "to": "WETH",
         "value": "1"
@@ -86,7 +86,7 @@
       "want": "block"
     },
     {
-      "label": "Send 1 ETH to WETH calling a made-up function",
+      "label": "Send 1 ETH to WETH with a made-up action",
       "tx": {
         "to": "WETH",
         "value": "1",
@@ -95,7 +95,7 @@
       "want": "block"
     },
     {
-      "label": "Send 1 ETH to WETH calling another made-up function",
+      "label": "Send 1 ETH to WETH with another made-up action",
       "tx": {
         "to": "WETH",
         "value": "1",
@@ -105,8 +105,8 @@
     }
   ],
   "hints": [
-    "WETH wraps any ETH it receives, whatever the calldata says. Most of those calls never reach the deposit rule.",
-    "You cannot block every function WETH does not have. Ask instead what the Safe should be allowed to do.",
+    "WETH wraps any ETH it receives, whatever is attached. Most of those calls never reach the Wrap ETH rule.",
+    "You cannot block every action WETH does not have. Ask instead what the Safe should be allowed to do.",
     "Drop the catch-all. Give plain ETH to Dave and USDC to Erin rules of their own."
   ],
   "solution": [
@@ -129,6 +129,6 @@
       }
     }
   ],
-  "explain": "WETH wraps ETH for empty calldata and for any function it does not know. Those calls miss the deny rule and land on the catch-all. A blocklist cannot win against a fallback: denying each made-up function here passes these tests and misses the next one. An allowlist can: with no permissive catch-all, every call to WETH is denied by default. Always Allow on the two new rules works too; the plain ETH policy and the recipient allowlist also keep them to plain ETH and to Erin.",
+  "explain": "WETH wraps ETH sent with nothing attached, and with any action it does not know. Those calls miss the deny rule and land on the catch-all. A blocklist cannot win against that: denying each made-up action here passes these tests and misses the next one. An allowlist can: with no permissive catch-all, every call to WETH is denied by default. Always Allow on the two new rules works too; Plain ETH Transfer and the Recipient Allowlist also keep them to plain ETH and to Erin.",
   "testMode": "sequence"
 }

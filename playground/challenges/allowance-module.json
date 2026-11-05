@@ -2,7 +2,7 @@
   "id": "allowance-module",
   "level": 3,
   "title": "The Allowance Module",
-  "brief": "The team installed the Allowance Module so the operations lead can pay Dave's USDC invoices without gathering signatures. From now on, USDC leaves the Safe only through that module, and the module does nothing else. Everything else the owners do still needs the co-signer.",
+  "brief": "The team installed the Allowance Module so the operations lead can pay Dave's USDC invoices without the owners signing each one. From now on, USDC leaves the Safe only through that module, and the module does nothing else. Everything else the owners do still needs the co-signer.",
   "setup": {
     "modules": [
       "AllowanceModule",
@@ -141,9 +141,9 @@
     }
   ],
   "hints": [
-    "A module transaction cannot carry a co-signature, so the co-signer catch-all refuses every module transaction.",
+    "A module transaction cannot be co-signed, so the co-signer catch-all refuses every module transaction.",
     "Give USDC transfers a rule of their own. Which policy looks at who sent the transaction rather than where the tokens go?",
-    "Module Allowlist (AllowedModulePolicy) on transfer for USDC, with the Allowance Module allowed. It refuses owners on that rule, and here that is the point."
+    "Module Allowlist on sending USDC, with the Allowance Module allowed. It refuses the owners on that rule, and here that is the point."
   ],
   "solution": [
     {

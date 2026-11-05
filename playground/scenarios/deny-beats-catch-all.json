@@ -3,7 +3,7 @@
   "chapter": "rules-and-catch-all",
   "order": 5,
   "title": "Deny Beats the Catch-All",
-  "summary": "A catch-all allows almost everything. An Always Deny rule on one function still shuts that door.",
+  "summary": "A catch-all allows almost everything. An Always Deny rule on one action still shuts that door.",
   "lesson": "An exact rule always wins over the catch-all. Give it the Always Deny policy to close one door, and remember that a permissive catch-all covers everything else: the Safe settings, and even burning ETH to the zero address.",
   "readme": "policy-engine",
   "setup": {

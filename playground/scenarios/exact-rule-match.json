@@ -3,7 +3,7 @@
   "chapter": "how-a-check-works",
   "order": 2,
   "title": "A Rule Is Exact",
-  "summary": "One rule allows USDC transfers. A different function, token or operation finds no rule.",
+  "summary": "One rule allows USDC payments. A different action, token or call type finds no rule.",
   "lesson": "A rule names one contract, one function and one operation. Change any of the three and the rule no longer applies.",
   "readme": "access-selectors",
   "setup": {

@@ -104,8 +104,8 @@
   ],
   "hints": [
     "There is one rule for USDC transfers, so Dave and Erin have to share it.",
-    "The recipient allowlist gives each person a permission: ALWAYS or ONCE.",
-    "Keep Dave on ALWAYS and add Erin with ONCE."
+    "The Recipient Allowlist gives each person a setting: \"always\" or \"once\".",
+    "Keep Dave on \"always\" and add Erin with \"once\"."
   ],
   "solution": [
     {
@@ -126,5 +126,5 @@
       }
     }
   ],
-  "explain": "Dave and Erin share one key, transfer on USDC, so they share one policy. The allowlist keeps a permission per person, and ONCE is used up by the payment that uses it. A one-time pass would have been used up by the first USDC payment of any kind, so Dave would have been refused next."
+  "explain": "Dave and Erin share one rule, sending USDC, so they share one policy. The allowlist keeps a setting per person, and \"once\" is used up by the payment that uses it. A One-Time Pass would have been used up by the first USDC payment of any kind, so Dave would have been refused next."
 }

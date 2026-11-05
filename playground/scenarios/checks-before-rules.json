@@ -3,7 +3,7 @@
   "chapter": "how-a-check-works",
   "order": 3,
   "title": "Checks Before the Rules",
-  "summary": "Missing signatures, gas settings and broken calldata are refused before any rule is read.",
+  "summary": "Too few owners signing, refund payments and unreadable actions are refused before any rule is read.",
   "lesson": "Some checks come before the rules. The Safe needs its owner signatures, and the guard refuses a gas price or gas limit other than zero, and calldata too short to name a function. A catch-all that allows everything does not change that.",
   "readme": "design",
   "setup": {

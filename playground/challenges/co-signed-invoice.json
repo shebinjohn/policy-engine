@@ -166,9 +166,9 @@
     }
   ],
   "hints": [
-    "The co-signature on Erin's payment is not the problem. Which rule decides a USDC transfer?",
+    "The co-signer's approval on Erin's payment is not the problem. Which rule decides a USDC payment?",
     "Only one policy checks each call. The USDC rule decides alone, and the catch-all is never asked.",
-    "Add Erin to the USDC allowlist with ONCE."
+    "Add Erin to the USDC allowlist with \"once\"."
   ],
   "solution": [
     {
@@ -196,5 +196,5 @@
       }
     }
   ],
-  "explain": "Each call is checked by exactly one policy. Once USDC transfers have their own rule, the co-signer catch-all never sees them, so a co-signature cannot add Erin. Put her on the allowlist instead, with ONCE so the invoice is paid one time. Policies do not stack: to combine two checks you need one policy that does both."
+  "explain": "Each call is checked by exactly one policy. When USDC payments have their own rule, the co-signer catch-all never sees them, so co-signing cannot add Erin. Put her on the allowlist instead, set to \"once\" so the invoice is paid one time. Policies do not stack: to combine two checks you need one policy that does both."
 }
