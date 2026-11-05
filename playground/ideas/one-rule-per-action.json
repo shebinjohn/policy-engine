@@ -1,0 +1,139 @@
+{
+  "id": "one-rule-per-action",
+  "chapter": "ideas",
+  "order": 2,
+  "title": "One Rule per Action",
+  "summary": "A rule matches one contract, one action and one call type, and names one policy.",
+  "lesson": "Each action has at most one rule, and that rule's single policy decides.",
+  "oneLiner": "A rule matches one contract, one action and one call type, and names one policy.",
+  "explain": [
+    "Each row of the rulebook names a contract, an action and a call type. Almost every call is a normal call.",
+    "Change the contract or the action, and the rule no longer applies.",
+    "A rule names exactly one policy, the checker that decides. One action never gets two policies, so a co-signer on another row cannot help it."
+  ],
+  "takeaway": "Each action has at most one rule, and that rule's single policy decides.",
+  "deepDives": [
+    "exact-rule-match",
+    "catch-all-cosigner"
+  ],
+  "setup": {
+    "balances": {
+      "USDC": "10000",
+      "SAFE": "1000"
+    },
+    "rules": [
+      {
+        "target": "USDC",
+        "selector": "transfer",
+        "policy": "ERC20TransferPolicy",
+        "config": {
+          "recipients": [
+            {
+              "account": "Dave",
+              "permission": "ALWAYS"
+            }
+          ]
+        }
+      },
+      {
+        "target": "SAFE",
+        "selector": "transfer",
+        "policy": "CoSignerPolicy",
+        "config": {
+          "cosigner": "CoSigner"
+        }
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "Pay Dave 500 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Dave",
+            "500"
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "Sending USDC has a rule, and Dave is on its list."
+    },
+    {
+      "do": "tx",
+      "label": "Approve Dave to spend 500 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "approve",
+          "args": [
+            "Dave",
+            "500"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "AccessDenied",
+        "policy": null
+      },
+      "note": "Same contract, different action. Letting someone spend USDC has no rule."
+    },
+    {
+      "do": "tx",
+      "label": "Send Erin 100 SAFE, co-signed",
+      "tx": {
+        "to": "SAFE",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Erin",
+            "100"
+          ]
+        },
+        "context": {
+          "type": "cosignature",
+          "signer": "CoSigner"
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "Sending SAFE has its own rule, and that rule asks for the co-signer."
+    },
+    {
+      "do": "tx",
+      "label": "Pay Erin 500 USDC, co-signed",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Erin",
+            "500"
+          ]
+        },
+        "context": {
+          "type": "cosignature",
+          "signer": "CoSigner"
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "ERC20TransferPolicy",
+        "reason": {
+          "error": "Unauthorized"
+        }
+      },
+      "note": "The USDC rule names the allowlist alone. The co-signer does not count there, and Erin is not on the list."
+    }
+  ]
+}

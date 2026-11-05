@@ -1,0 +1,116 @@
+{
+  "id": "a-few-surprises",
+  "chapter": "ideas",
+  "order": 8,
+  "title": "A Few Surprises",
+  "summary": "Most rules behave as expected, but these few cases surprise almost everyone.",
+  "lesson": "Rules cover actions, not outcomes, so allow what you need rather than blocking what you fear.",
+  "oneLiner": "Most rules behave as expected, but these few cases surprise almost everyone.",
+  "explain": [
+    "A rule blocks one action, not an outcome. WETH turns any ETH sent to it into wrapped ETH, even without its wrap action.",
+    "Removing a rule does not block anything: the action falls to Anything else. A failed batch gives back any one-time permission it used.",
+    "A delegatecall lets another contract run its code as if it were the Safe, with full control. Never allow unknown code to do that."
+  ],
+  "takeaway": "Rules cover actions, not outcomes, so allow what you need rather than blocking what you fear.",
+  "deepDives": [
+    "weth-fallback",
+    "removing-is-not-denying",
+    "plain-eth-transfers",
+    "failed-batch-keeps-grant",
+    "exact-rule-match"
+  ],
+  "setup": {
+    "balances": {
+      "ETH": "10"
+    },
+    "rules": [
+      {
+        "target": "WETH",
+        "selector": "deposit",
+        "policy": "DenyPolicy"
+      },
+      {
+        "target": "Dave",
+        "selector": "none",
+        "policy": "NativeTransferPolicy"
+      },
+      {
+        "fallback": "CALL",
+        "policy": "AllowPolicy"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "Wrap 1 ETH",
+      "tx": {
+        "to": "WETH",
+        "value": "1",
+        "call": {
+          "fn": "deposit"
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "AccessDenied",
+        "policy": "DenyPolicy"
+      },
+      "note": "Wrapping has its own rule, Always Deny, so this is blocked."
+    },
+    {
+      "do": "tx",
+      "label": "Send 1 ETH to WETH",
+      "tx": {
+        "to": "WETH",
+        "value": "1"
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "WETH wraps any ETH it receives. A plain send has no rule of its own, so Anything else allows it.",
+      "expectState": {
+        "balances": {
+          "Safe": {
+            "WETH": "1"
+          }
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Send Dave 1 ETH with four zero bytes attached",
+      "tx": {
+        "to": "Dave",
+        "value": "1",
+        "data": "0x00000000"
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "NativeTransferPolicy",
+        "reason": {
+          "error": "CalldataNotPermitted"
+        }
+      },
+      "note": "Four zero bytes look like an empty send, so they reach Dave's plain ETH rule. The Plain ETH Transfer policy notices; Always Allow would not."
+    },
+    {
+      "do": "tx",
+      "label": "Run unknown code inside the Safe",
+      "tx": {
+        "to": "MysteryContract",
+        "operation": "DELEGATECALL"
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "AccessDenied",
+        "policy": null
+      },
+      "note": "This is a delegatecall. Anything else here covers normal calls only, so unknown code gets no way in."
+    }
+  ]
+}

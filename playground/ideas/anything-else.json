@@ -1,0 +1,101 @@
+{
+  "id": "anything-else",
+  "chapter": "ideas",
+  "order": 4,
+  "title": "The \"Anything Else\" Rule",
+  "summary": "One rule can decide every transaction that has no rule of its own.",
+  "lesson": "Anything else decides only what no other rule covers, and a specific rule always wins.",
+  "oneLiner": "One rule can decide every transaction that has no rule of its own.",
+  "explain": [
+    "The Anything else rule, also called the catch-all, sits at the bottom of the rulebook. It decides only when no other rule matches.",
+    "A common choice is a co-signer: anything new needs a second opinion before it runs.",
+    "A specific rule always wins over Anything else. Always Deny on one action blocks it, whatever the catch-all says."
+  ],
+  "takeaway": "Anything else decides only what no other rule covers, and a specific rule always wins.",
+  "deepDives": [
+    "catch-all-cosigner",
+    "deny-beats-catch-all",
+    "removing-is-not-denying"
+  ],
+  "setup": {
+    "balances": {
+      "ETH": "10",
+      "USDC": "10000"
+    },
+    "rules": [
+      {
+        "fallback": "CALL",
+        "policy": "CoSignerPolicy",
+        "config": {
+          "cosigner": "CoSigner"
+        }
+      },
+      {
+        "target": "USDC",
+        "selector": "approve",
+        "policy": "DenyPolicy"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "Send Erin 1 ETH",
+      "tx": {
+        "to": "Erin",
+        "value": "1"
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "CoSignerPolicy",
+        "reason": {
+          "error": "Unauthorized"
+        }
+      },
+      "note": "No rule mentions ETH, so Anything else decides. It wants the co-signer, who has not agreed."
+    },
+    {
+      "do": "tx",
+      "label": "Send Erin 1 ETH, co-signed",
+      "tx": {
+        "to": "Erin",
+        "value": "1",
+        "context": {
+          "type": "cosignature",
+          "signer": "CoSigner"
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "The co-signer agreed, so Anything else allows it."
+    },
+    {
+      "do": "tx",
+      "label": "Approve Mallory to spend 1000 USDC, co-signed",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "approve",
+          "args": [
+            "Mallory",
+            "1000"
+          ]
+        },
+        "context": {
+          "type": "cosignature",
+          "signer": "CoSigner"
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "AccessDenied",
+        "policy": "DenyPolicy"
+      },
+      "note": "Letting someone spend USDC has its own rule, Always Deny. It wins, so the co-signer cannot help."
+    }
+  ]
+}

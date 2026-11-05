@@ -1,0 +1,140 @@
+{
+  "id": "modules-are-checked-too",
+  "chapter": "ideas",
+  "order": 6,
+  "title": "Modules Are Checked Too",
+  "summary": "Modules act without the owners, but the guard checks module transactions too.",
+  "lesson": "Modules follow the same rulebook, and some policies accept only modules or only owners.",
+  "oneLiner": "Modules act without the owners, but the guard checks module transactions too.",
+  "explain": [
+    "A module is an add-on the Safe trusts to act without the owners, like an Allowance Module that pays bills.",
+    "The guard checks module transactions too, against the same rulebook. Some policies tell owners and modules apart.",
+    "The Module Allowlist accepts only the modules it lists. The Co-Signer and Extra Owner Signatures accept only the owners."
+  ],
+  "takeaway": "Modules follow the same rulebook, and some policies accept only modules or only owners.",
+  "deepDives": [
+    "module-paths",
+    "one-guard-is-no-guard",
+    "harden-in-one-batch"
+  ],
+  "setup": {
+    "modules": [
+      "AllowanceModule",
+      "RecoveryModule"
+    ],
+    "balances": {
+      "ETH": "5",
+      "USDC": "10000"
+    },
+    "rules": [
+      {
+        "target": "USDC",
+        "selector": "transfer",
+        "policy": "AllowedModulePolicy",
+        "config": {
+          "module": "AllowanceModule",
+          "allowed": true
+        }
+      },
+      {
+        "fallback": "CALL",
+        "policy": "CoSignerPolicy",
+        "config": {
+          "cosigner": "CoSigner"
+        }
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "The Allowance Module pays Dave 300 USDC",
+      "tx": {
+        "path": "module",
+        "module": "AllowanceModule",
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Dave",
+            "300"
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "USDC payments may come from the Allowance Module, and this one does."
+    },
+    {
+      "do": "tx",
+      "label": "The Recovery Module pays Dave 300 USDC",
+      "tx": {
+        "path": "module",
+        "module": "RecoveryModule",
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Dave",
+            "300"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "AllowedModulePolicy",
+        "reason": {
+          "error": "UnauthorizedModule"
+        }
+      },
+      "note": "Only the Allowance Module may send USDC. The Recovery Module is not on the list."
+    },
+    {
+      "do": "tx",
+      "label": "The owners pay Dave 300 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Dave",
+            "300"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "AllowedModulePolicy",
+        "reason": {
+          "error": "InvalidModule"
+        }
+      },
+      "note": "This rule accepts the Allowance Module only. Even the owners cannot send USDC this way."
+    },
+    {
+      "do": "tx",
+      "label": "The Allowance Module sends Erin 1 ETH",
+      "tx": {
+        "path": "module",
+        "module": "AllowanceModule",
+        "to": "Erin",
+        "value": "1"
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "CoSignerPolicy",
+        "reason": {
+          "error": "ModulePathUnsupported"
+        }
+      },
+      "note": "Anything else wants the co-signer, and a module cannot bring one. So the module is refused."
+    }
+  ]
+}

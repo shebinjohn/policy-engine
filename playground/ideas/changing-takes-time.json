@@ -1,0 +1,163 @@
+{
+  "id": "changing-takes-time",
+  "chapter": "ideas",
+  "order": 7,
+  "title": "Changing the Rulebook Takes Time",
+  "summary": "Rule changes are proposed first and apply only after a waiting period.",
+  "lesson": "Propose, wait, apply: nobody can change the rulebook in a hurry.",
+  "oneLiner": "Rule changes are proposed first and apply only after a waiting period.",
+  "explain": [
+    "Once the guard is installed, the rulebook changes in three steps: propose, wait, apply. Proposing is always allowed.",
+    "The wait gives the owners time to spot a change they did not expect and cancel it. Here it is one hour.",
+    "A ready change can be applied for seven days, then it expires. A new Safe gets its first rules and its guard in one batch."
+  ],
+  "takeaway": "Propose, wait, apply: nobody can change the rulebook in a hurry.",
+  "deepDives": [
+    "delayed-change",
+    "requests-expire",
+    "harden-in-one-batch",
+    "guard-removal"
+  ],
+  "setup": {
+    "balances": {
+      "USDC": "10000"
+    },
+    "rules": [
+      {
+        "target": "USDC",
+        "selector": "transfer",
+        "policy": "ERC20TransferPolicy",
+        "config": {
+          "recipients": [
+            {
+              "account": "Dave",
+              "permission": "ALWAYS"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "Propose adding Erin to the USDC list",
+      "tx": {
+        "to": "PolicyGuard",
+        "call": {
+          "fn": "requestConfiguration",
+          "configurations": [
+            {
+              "target": "USDC",
+              "selector": "transfer",
+              "policy": "ERC20TransferPolicy",
+              "config": {
+                "recipients": [
+                  {
+                    "account": "Dave",
+                    "permission": "ALWAYS"
+                  },
+                  {
+                    "account": "Erin",
+                    "permission": "ALWAYS"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "Proposing a change is always allowed. Now it waits."
+    },
+    {
+      "do": "tx",
+      "label": "Pay Erin 500 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Erin",
+            "500"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "ERC20TransferPolicy",
+        "reason": {
+          "error": "Unauthorized"
+        }
+      },
+      "note": "The change is still waiting, so Erin is not on the list yet."
+    },
+    {
+      "do": "wait",
+      "label": "Wait one hour",
+      "seconds": 3600
+    },
+    {
+      "do": "tx",
+      "label": "Apply the change",
+      "tx": {
+        "to": "PolicyGuard",
+        "call": {
+          "fn": "applyConfiguration",
+          "configurations": [
+            {
+              "target": "USDC",
+              "selector": "transfer",
+              "policy": "ERC20TransferPolicy",
+              "config": {
+                "recipients": [
+                  {
+                    "account": "Dave",
+                    "permission": "ALWAYS"
+                  },
+                  {
+                    "account": "Erin",
+                    "permission": "ALWAYS"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "The hour has passed, so the owners can apply the change."
+    },
+    {
+      "do": "tx",
+      "label": "Pay Erin 500 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Erin",
+            "500"
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "Erin is on the list now.",
+      "expectState": {
+        "balances": {
+          "Erin": {
+            "USDC": "500"
+          }
+        }
+      }
+    }
+  ]
+}

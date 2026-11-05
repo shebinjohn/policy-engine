@@ -1,0 +1,178 @@
+{
+  "id": "how-it-works",
+  "chapter": "ideas",
+  "order": 0,
+  "title": "How the Policy Engine Decides",
+  "summary": "Every transaction is looked up in a rulebook, and the matching rule decides.",
+  "lesson": "The guard finds the one matching rule and its policy decides; anything unmatched goes to Anything else.",
+  "oneLiner": "Every transaction is looked up in a rulebook, and the matching rule decides.",
+  "explain": [
+    "Every Safe transaction goes to the Policy Guard first. The guard looks it up in the rulebook by contract, action and call type.",
+    "The matching rule names one policy, the checker that decides. Changing the rulebook later takes a waiting period.",
+    "No matching rule? The Anything else row decides. Without that row, the transaction is blocked."
+  ],
+  "takeaway": "The guard finds the one matching rule and its policy decides; anything unmatched goes to Anything else.",
+  "deepDives": [
+    "deny-by-default",
+    "exact-rule-match",
+    "catch-all-cosigner",
+    "every-step-checked"
+  ],
+  "setup": {
+    "balances": {
+      "ETH": "10",
+      "USDC": "10000"
+    },
+    "rules": [
+      {
+        "target": "USDC",
+        "selector": "transfer",
+        "policy": "ERC20TransferPolicy",
+        "config": {
+          "recipients": [
+            {
+              "account": "Dave",
+              "permission": "ALWAYS"
+            }
+          ]
+        }
+      },
+      {
+        "target": "MultiSend",
+        "selector": "multiSend",
+        "operation": "DELEGATECALL",
+        "policy": "MultiSendPolicy"
+      },
+      {
+        "fallback": "CALL",
+        "policy": "CoSignerPolicy",
+        "config": {
+          "cosigner": "CoSigner"
+        }
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "Pay Dave 500 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Dave",
+            "500"
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "The USDC rule names the Recipient Allowlist, and Dave is on it."
+    },
+    {
+      "do": "tx",
+      "label": "Pay Mallory 500 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Mallory",
+            "500"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "ERC20TransferPolicy",
+        "reason": {
+          "error": "Unauthorized"
+        }
+      },
+      "note": "The same rule decides, and Mallory is not on the USDC list."
+    },
+    {
+      "do": "tx",
+      "label": "Send Erin 1 ETH, co-signed",
+      "tx": {
+        "to": "Erin",
+        "value": "1",
+        "context": {
+          "type": "cosignature",
+          "signer": "CoSigner"
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "No rule mentions ETH, so Anything else decides. It asks the co-signer, who agreed."
+    },
+    {
+      "do": "tx",
+      "label": "In one batch: pay Dave 500 USDC and send Erin 1 ETH, co-signed",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "USDC",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Dave",
+                  "500"
+                ]
+              }
+            },
+            {
+              "to": "Erin",
+              "value": "1",
+              "context": {
+                "type": "cosignature",
+                "signer": "CoSigner"
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "The batch has a rule of its own. Then each step is checked like a separate transaction, and both pass."
+    },
+    {
+      "do": "tx",
+      "label": "Pay Erin 500 USDC, co-signed",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Erin",
+            "500"
+          ]
+        },
+        "context": {
+          "type": "cosignature",
+          "signer": "CoSigner"
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "ERC20TransferPolicy",
+        "reason": {
+          "error": "Unauthorized"
+        }
+      },
+      "note": "USDC has its own rule, so Anything else is never asked. The co-signer cannot add Erin to the list."
+    }
+  ]
+}

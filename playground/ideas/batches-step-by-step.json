@@ -1,0 +1,186 @@
+{
+  "id": "batches-step-by-step",
+  "chapter": "ideas",
+  "order": 5,
+  "title": "Batches Are Checked Step by Step",
+  "summary": "A batch needs its own rule, and every step inside needs one too.",
+  "lesson": "A batch passes only if every step in it would pass on its own.",
+  "oneLiner": "A batch needs its own rule, and every step inside needs one too.",
+  "explain": [
+    "A batch bundles several transactions, so the owners sign once. The Batch Checker rule lets the batch in.",
+    "Then each step goes through the rulebook on its own, as if it were sent alone.",
+    "If one step is blocked, the whole batch is blocked, and nobody is paid."
+  ],
+  "takeaway": "A batch passes only if every step in it would pass on its own.",
+  "deepDives": [
+    "every-step-checked",
+    "failed-batch-keeps-grant",
+    "co-sign-each-step",
+    "batch-sees-old-state"
+  ],
+  "setup": {
+    "balances": {
+      "ETH": "5",
+      "USDC": "20000"
+    },
+    "rules": [
+      {
+        "target": "MultiSend",
+        "selector": "multiSend",
+        "operation": "DELEGATECALL",
+        "policy": "MultiSendPolicy"
+      },
+      {
+        "target": "USDC",
+        "selector": "transfer",
+        "policy": "ERC20TransferPolicy",
+        "config": {
+          "recipients": [
+            {
+              "account": "Dave",
+              "permission": "ALWAYS"
+            },
+            {
+              "account": "Erin",
+              "permission": "ALWAYS"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "In one batch: pay Dave 4000 USDC and Erin 3500 USDC",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "USDC",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Dave",
+                  "4000"
+                ]
+              }
+            },
+            {
+              "to": "USDC",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Erin",
+                  "3500"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "Both steps pass the USDC rule, so the batch goes through.",
+      "expectState": {
+        "balances": {
+          "Dave": {
+            "USDC": "4000"
+          },
+          "Erin": {
+            "USDC": "3500"
+          }
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "In one batch: pay Dave 4000 USDC and Mallory 3500 USDC",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "USDC",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Dave",
+                  "4000"
+                ]
+              }
+            },
+            {
+              "to": "USDC",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Mallory",
+                  "3500"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "MultiSendPolicy",
+        "reason": {
+          "error": "PolicyReverted",
+          "policy": "ERC20TransferPolicy",
+          "reason": {
+            "error": "Unauthorized"
+          }
+        }
+      },
+      "note": "Mallory is not on the list. Her step blocks the batch, so Dave is not paid either."
+    },
+    {
+      "do": "tx",
+      "label": "In one batch: pay Dave 4000 USDC and send Erin 1 ETH",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "USDC",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Dave",
+                  "4000"
+                ]
+              }
+            },
+            {
+              "to": "Erin",
+              "value": "1"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "MultiSendPolicy",
+        "reason": {
+          "error": "AccessDenied",
+          "policy": null
+        }
+      },
+      "note": "The batch rule only lets the batch in. Sending ETH has no rule, so the whole batch stops."
+    }
+  ]
+}

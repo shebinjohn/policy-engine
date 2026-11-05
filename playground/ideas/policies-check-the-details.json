@@ -1,0 +1,149 @@
+{
+  "id": "policies-check-the-details",
+  "chapter": "ideas",
+  "order": 3,
+  "title": "Policies Check the Details",
+  "summary": "A policy decides by looking closer: who receives, how often, and who agreed.",
+  "lesson": "The rule finds the policy, and the policy checks who receives, how often and who agreed.",
+  "oneLiner": "A policy decides by looking closer: who receives, how often, and who agreed.",
+  "explain": [
+    "The rule picks the policy. The policy then checks the details that matter for that action.",
+    "A Recipient Allowlist checks who receives and how many times. Extra Owner Signatures asks more owners to sign than usual.",
+    "Other policies ask for a co-signer or a specific module. Each policy label says what it checks."
+  ],
+  "takeaway": "The rule finds the policy, and the policy checks who receives, how often and who agreed.",
+  "deepDives": [
+    "recipient-allowlist",
+    "approvals-and-revokes",
+    "more-owner-signatures"
+  ],
+  "setup": {
+    "balances": {
+      "USDC": "10000"
+    },
+    "rules": [
+      {
+        "target": "USDC",
+        "selector": "transfer",
+        "policy": "ERC20TransferPolicy",
+        "config": {
+          "recipients": [
+            {
+              "account": "Erin",
+              "permission": "ONCE"
+            }
+          ]
+        }
+      },
+      {
+        "target": "Safe",
+        "selector": "addOwnerWithThreshold",
+        "policy": "IncreasedThresholdPolicy",
+        "config": {
+          "maxAbsent": 0
+        }
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "Pay Erin 500 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Erin",
+            "500"
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "Erin may be paid once, and this is her one payment."
+    },
+    {
+      "do": "tx",
+      "label": "Pay Erin another 500 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Erin",
+            "500"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "ERC20TransferPolicy",
+        "reason": {
+          "error": "Unauthorized"
+        }
+      },
+      "note": "Erin was allowed one payment, and she has had it."
+    },
+    {
+      "do": "tx",
+      "label": "Add Erin as an owner, two owners sign",
+      "tx": {
+        "to": "Safe",
+        "call": {
+          "fn": "addOwnerWithThreshold",
+          "args": [
+            "Erin",
+            2
+          ]
+        },
+        "context": {
+          "type": "ownerSignatures",
+          "signers": [
+            "Alice",
+            "Bob"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "IncreasedThresholdPolicy",
+        "reason": {
+          "error": "GS020"
+        }
+      },
+      "note": "Two of the three owners are normally enough. For adding an owner, this rule wants all of them."
+    },
+    {
+      "do": "tx",
+      "label": "Add Erin as an owner, all owners sign",
+      "tx": {
+        "to": "Safe",
+        "call": {
+          "fn": "addOwnerWithThreshold",
+          "args": [
+            "Erin",
+            2
+          ]
+        },
+        "context": {
+          "type": "ownerSignatures",
+          "signers": [
+            "Alice",
+            "Bob",
+            "Carol"
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "All three owners agreed, so Erin joins."
+    }
+  ]
+}

@@ -1,0 +1,96 @@
+{
+  "id": "nothing-without-a-rule",
+  "chapter": "ideas",
+  "order": 1,
+  "title": "Nothing Passes Without a Rule",
+  "summary": "If no rule covers a transaction, it is blocked, even when the owners sign.",
+  "lesson": "No rule, no transaction: the owners signing is not enough on its own.",
+  "oneLiner": "If no rule covers a transaction, it is blocked, even when the owners sign.",
+  "explain": [
+    "With the Policy Guard installed, the owners signing is no longer enough. Each transaction also needs a rule that allows it.",
+    "You list what may happen, and everything else stops. Engineers call this deny by default.",
+    "Changing the Safe itself, like adding an owner, is a transaction too. It needs a rule as well."
+  ],
+  "takeaway": "No rule, no transaction: the owners signing is not enough on its own.",
+  "deepDives": [
+    "deny-by-default",
+    "checks-before-rules"
+  ],
+  "setup": {
+    "balances": {
+      "ETH": "10",
+      "USDC": "10000"
+    },
+    "rules": [
+      {
+        "target": "USDC",
+        "selector": "transfer",
+        "policy": "ERC20TransferPolicy",
+        "config": {
+          "recipients": [
+            {
+              "account": "Dave",
+              "permission": "ALWAYS"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "Pay Dave 500 USDC",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Dave",
+            "500"
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "A rule covers USDC payments, and Dave is on its list."
+    },
+    {
+      "do": "tx",
+      "label": "Send Dave 1 ETH",
+      "tx": {
+        "to": "Dave",
+        "value": "1"
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "AccessDenied",
+        "policy": null
+      },
+      "note": "No rule mentions ETH, so it is blocked. The owners signed, and that is not enough."
+    },
+    {
+      "do": "tx",
+      "label": "Add Mallory as an owner",
+      "tx": {
+        "to": "Safe",
+        "call": {
+          "fn": "addOwnerWithThreshold",
+          "args": [
+            "Mallory",
+            2
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "AccessDenied",
+        "policy": null
+      },
+      "note": "Changing who owns the Safe needs a rule too. There is none, so nobody can be added."
+    }
+  ]
+}

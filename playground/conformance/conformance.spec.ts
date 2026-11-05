@@ -55,6 +55,7 @@ function discover(): Entry[] {
     entries.push({ kind, source, file, content })
   }
   for (const file of readDir(path.join(PLAYGROUND, 'scenarios'))) load(file, 'scenarios', 'scenario')
+  for (const file of readDir(path.join(PLAYGROUND, 'ideas'))) load(file, 'scenarios', 'scenario') // simple-layer explainer and big ideas
   for (const file of readDir(path.join(PLAYGROUND, 'challenges'))) load(file, 'challenges', 'challenge')
   for (const file of readDir(path.join(__dirname, 'fixtures'))) load(file, 'fixtures')
   // Minimal reproducers found by differential fuzzing (engine vs chain), pinned with the chain outcome.

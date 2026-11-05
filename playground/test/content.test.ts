@@ -12,6 +12,7 @@ import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 import {
+  type BigIdea,
   checkExpectation,
   runChallenge,
   runScenario,
@@ -23,6 +24,8 @@ import {
   type SubTxSpec,
   type TxSpec
 } from '../src/engine/index.ts'
+
+import { POLICIES } from '../src/content/policies.ts'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -44,23 +47,40 @@ function chain(err: { error: string; policy?: string | null; reason?: unknown } 
 
 const scenarios = load<Scenario>('scenarios')
 const challenges = load<Challenge>('challenges')
+/** The simple layer: ideas/how-it-works.json (order 0) and the 8 big ideas. They replay like scenarios. */
+const ideas = load<BigIdea>('ideas')
+
+function replayProblems(scenario: Scenario): string[] {
+  const problems: string[] = []
+  runScenario(scenario).forEach((o, i) => {
+    if (o.step.do !== 'tx') return
+    if (!o.matches) {
+      problems.push(
+        `  step ${i + 1} "${o.step.label}": ${o.mismatch}\n    expected ${JSON.stringify(o.step.expect)}\n    engine   ${o.result?.ok ? 'ok' : `${o.result?.error?.by}:${chain(o.result?.error)}`}`
+      )
+    }
+  })
+  return problems
+}
 
 describe('content: scenarios', () => {
   if (scenarios.length === 0) it('no scenario files yet', () => {})
   for (const { file, data: scenario } of scenarios) {
     it(`${scenario.id} (${file})`, () => {
       assert.equal(path.basename(file, '.json'), scenario.id, 'file name must equal id')
-      const outcomes = runScenario(scenario)
-      const problems: string[] = []
-      outcomes.forEach((o, i) => {
-        if (o.step.do !== 'tx') return
-        if (!o.matches) {
-          problems.push(
-            `  step ${i + 1} "${o.step.label}": ${o.mismatch}\n    expected ${JSON.stringify(o.step.expect)}\n    engine   ${o.result?.ok ? 'ok' : `${o.result?.error?.by}:${chain(o.result?.error)}`}`
-          )
-        }
-      })
+      const problems = replayProblems(scenario)
       assert.equal(problems.length, 0, `\n${scenario.id}: ${problems.length} step(s) disagree\n${problems.join('\n')}`)
+    })
+  }
+})
+
+describe('content: ideas', () => {
+  if (ideas.length === 0) it('no idea files yet', () => {})
+  for (const { file, data: idea } of ideas) {
+    it(`${idea.id} (${file})`, () => {
+      assert.equal(path.basename(file, '.json'), idea.id, 'file name must equal id')
+      const problems = replayProblems(idea)
+      assert.equal(problems.length, 0, `\n${idea.id}: ${problems.length} card(s) disagree\n${problems.join('\n')}`)
     })
   }
 })
@@ -92,7 +112,7 @@ describe('content: challenges', () => {
 
 describe('content: expectation helper', () => {
   it('checkExpectation agrees with runScenario on every step', () => {
-    for (const { data: scenario } of scenarios) {
+    for (const { data: scenario } of [...scenarios, ...ideas]) {
       for (const o of runScenario(scenario)) {
         if (o.step.do !== 'tx' || !o.result || o.step.expectState) continue
         assert.equal(checkExpectation(o.result, o.step.expect) === null, o.matches, `${scenario.id} ${o.step.label}`)
@@ -254,12 +274,90 @@ describe('content: no single-rule edit of a solution still solves', () => {
  * whatever stops the transaction, so a note could blame the wrong check and no test would notice.
  */
 describe('content: blocked scenario steps name the error', () => {
-  for (const { file, data: scenario } of scenarios) {
+  for (const { file, data: scenario } of [...scenarios, ...ideas]) {
     it(`${scenario.id} (${file})`, () => {
       const vague = scenario.steps
         .filter((s): s is Extract<ScenarioStep, { do: 'tx' }> => s.do === 'tx' && !s.expect.ok && (s.expect.by === undefined || s.expect.error === undefined))
         .map((s) => `"${s.label}"`)
       assert.deepEqual(vague, [], `blocked steps without both expect.by and expect.error: ${vague.join(', ')}`)
+    })
+  }
+})
+
+/**
+ * The simple layer (docs/research/SIMPLE_LAYER.md): the explainer has exactly five cards, each big
+ * idea two to four, every one mixes Allowed and Blocked, deep dives point at real scenarios, and the
+ * copy keeps to the brief's limits and words.
+ */
+const FORBIDDEN_WORDS =
+  /\b(nonces?|selectors?|calldata|gas|hex|signatures?|revert(s|ed)?|transaction guard|module guard|GS\d{3})\b/i
+const POLICY_LABELS_RE = new RegExp(Object.values(POLICIES).map((p) => p.label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g')
+const CODE_IDENTIFIER = /\b([a-z]+[A-Z]\w*|[A-Z][a-z]+[A-Z]\w*)\b/
+
+function sentences(text: string): string[] {
+  return text.split(/(?<=[.?!])\s+/).map((t) => t.trim()).filter(Boolean)
+}
+function words(text: string): number {
+  return text.split(/\s+/).filter(Boolean).length
+}
+
+function copyBlocks(idea: BigIdea): { where: string; text: string }[] {
+  const blocks = [
+    { where: 'title', text: idea.title },
+    { where: 'oneLiner', text: idea.oneLiner },
+    { where: 'summary', text: idea.summary },
+    { where: 'lesson', text: idea.lesson },
+    { where: 'takeaway', text: idea.takeaway },
+    ...idea.explain.map((text, i) => ({ where: `explain[${i}]`, text }))
+  ]
+  idea.steps.forEach((step, i) => {
+    blocks.push({ where: `steps[${i}].label`, text: step.label })
+    if (step.note) blocks.push({ where: `steps[${i}].note`, text: step.note })
+  })
+  return blocks
+}
+
+describe('content: ideas follow the simple-layer brief', () => {
+  const scenarioIds = new Set(scenarios.map((s) => s.data.id))
+  it('orders run 0 to 8 with how-it-works first', () => {
+    const orders = ideas.map((i) => i.data.order).sort((a, b) => a - b)
+    assert.deepEqual(orders, [0, 1, 2, 3, 4, 5, 6, 7, 8])
+    assert.equal(ideas.find((i) => i.data.order === 0)?.data.id, 'how-it-works')
+  })
+  for (const { file, data: idea } of ideas) {
+    it(`${idea.id} (${file})`, () => {
+      const problems: string[] = []
+      const cards = idea.steps.filter((s): s is Extract<ScenarioStep, { do: 'tx' }> => s.do === 'tx')
+      if (idea.order === 0 ? cards.length !== 5 : cards.length < 2 || cards.length > 4) {
+        problems.push(`${cards.length} cards (want ${idea.order === 0 ? '5' : '2 to 4'})`)
+      }
+      if (!cards.some((c) => c.expect.ok)) problems.push('no Allowed card')
+      if (!cards.some((c) => !c.expect.ok)) problems.push('no Blocked card')
+      if (idea.steps.some((s) => s.do === 'wait') && idea.order !== 7) problems.push('wait steps belong to idea 7 only')
+      if (idea.chapter !== 'ideas') problems.push(`chapter must be 'ideas'`)
+      const rules = idea.setup.rules?.length ?? 0
+      if (rules < 1 || rules > 3) problems.push(`${rules} setup rules (want 1 to 3)`)
+      if (!idea.deepDives?.length) problems.push('no deep dives')
+      for (const id of idea.deepDives ?? []) if (!scenarioIds.has(id)) problems.push(`deep dive "${id}" is not a scenario`)
+      if (words(idea.oneLiner) > 15) problems.push(`oneLiner has ${words(idea.oneLiner)} words (max 15)`)
+      if (idea.explain.length < 1 || idea.explain.length > 3) problems.push(`${idea.explain.length} explain paragraphs (want 1 to 3)`)
+      idea.explain.forEach((p, i) => {
+        if (words(p) > 40) problems.push(`explain[${i}] has ${words(p)} words (max 40)`)
+      })
+      for (const { where, text } of copyBlocks(idea)) {
+        const parts = sentences(text)
+        if (parts.length > 3) problems.push(`${where}: ${parts.length} sentences (max 3)`)
+        for (const sentence of parts) if (words(sentence) > 20) problems.push(`${where}: sentence over 20 words: "${sentence}"`)
+        if (/[\u2013\u2014]/.test(text)) problems.push(`${where}: dash`)
+        if (/\p{Extended_Pictographic}/u.test(text)) problems.push(`${where}: emoji`)
+        // Policy labels are simple-layer words even where they contain a banned one ("Extra Owner Signatures").
+        const banned = text.replace(POLICY_LABELS_RE, '').match(FORBIDDEN_WORDS)
+        if (banned) problems.push(`${where}: "${banned[0]}" is not a simple-layer word`)
+        const code = text.match(CODE_IDENTIFIER)
+        if (code) problems.push(`${where}: code identifier "${code[0]}"`)
+        if (/delegatecall/i.test(text) && idea.order !== 8) problems.push(`${where}: delegatecall belongs to idea 8 only`)
+      }
+      assert.deepEqual(problems, [], `\n${idea.id}:\n  ${problems.join('\n  ')}`)
     })
   }
 })
