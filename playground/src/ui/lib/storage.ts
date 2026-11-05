@@ -25,6 +25,8 @@ export interface Stored {
   progress?: Record<string, ChallengeProgress>
   /** Scenario ids walked to the end. */
   scenariosDone?: Record<string, true>
+  /** Big ideas whose cards were all revealed. */
+  ideasDone?: Record<string, true>
   /** Where the viewer last was in the scenarios: id and 1-based step. */
   lastScenario?: { id: string; step: number }
 }

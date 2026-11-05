@@ -553,7 +553,9 @@ export function ResultView({
   here,
   decided,
   verdictId,
-  focusVerdict = 0
+  focusVerdict = 0,
+  edges = true,
+  showVerdict = true
 }: {
   result: SimResult
   tx: TxSpec
@@ -570,17 +572,22 @@ export function ResultView({
   verdictId?: string
   /** Change this number to move focus to the verdict (after a run). */
   focusVerdict?: number
+  /** Sharp-edge warnings: on in Advanced and scenarios, off on the simple layer. */
+  edges?: boolean
+  /** The simple layer shows its own stamp above, so it hides this verdict. */
+  showVerdict?: boolean
 }) {
   const engineer = useEngineer()
   const H = `h${headingLevel}` as 'h2' | 'h3' | 'h4'
   const path = tx.path ?? 'owner'
   const edge = useMemo(() => {
+    if (!edges) return null
     try {
       return detectSharpEdge({ result, tx, world, seenKeys })
     } catch {
       return null
     }
-  }, [result, tx, world, seenKeys])
+  }, [result, tx, world, seenKeys, edges])
   const total = useMemo(() => stageCount(result), [result])
   const [step, setStep] = useState<number | null>(null) // null: show everything
   const verdictRef = useRef<HTMLDivElement>(null)
@@ -613,7 +620,7 @@ export function ResultView({
   return (
     <div className="result">
       {showSummary ? <TxSummary world={world} tx={tx} /> : null}
-      {done ? (
+      {!showVerdict ? null : done ? (
         <Verdict result={result} ref={verdictRef} id={verdictId}>
           {previous ? <CompareLine previous={previous} current={result} path={path} /> : null}
         </Verdict>
