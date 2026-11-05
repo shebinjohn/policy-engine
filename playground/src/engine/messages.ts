@@ -14,7 +14,7 @@ import {
   kindOf,
   shortLabel
 } from './book.ts'
-import { SELECTORS, catalogBySelector, decodeConfigurations, GUARD_IFACE, MULTISEND_IFACE } from './catalog.ts'
+import { catalogBySelector } from './catalog.ts'
 import type { Fault } from './errors.ts'
 import type { ErrorSource, PolicyName, World } from './types.ts'
 
@@ -459,7 +459,7 @@ export const T = {
   execMultiSendCall: 'MultiSend runs the steps from its own address, not from the Safe',
   execMultiSendCallDetail:
     'Called without delegatecall, MultiSend acts for itself. The steps cannot spend the Safe funds or change its settings.',
-  execRevert: (what: string) => `The call failed: ${what}`,
+  execRevert: (who: string) => `${who} refused the call`,
   execStepDelegate: 'MultiSend (call only) refuses a delegatecall inside a batch',
   afterOk: 'The guard confirms the call succeeded',
   afterModuleFail: 'The module call failed, so the guard reverts everything',
@@ -500,9 +500,6 @@ export const E = {
   multiSendOwnCall: 'MultiSend acted for itself, not for the Safe'
 }
 
-export function describeAssetAmount(w: World | null, asset: string, amount: bigint): string {
-  return formatAsset(w, asset, amount)
-}
 
 export function permissionWord(p: number): string {
   return p === 2 ? 'always' : p === 1 ? 'once' : 'removed'
@@ -538,21 +535,5 @@ export function describeConfigData(w: World | null, policy: PolicyName, data: st
     }
   } catch {
     return undefined
-  }
-}
-
-export function configurationsCount(data: string): number | null {
-  try {
-    return decodeConfigurations(GUARD_IFACE, data.slice(0, 10) === SELECTORS.applyConfiguration ? 'applyConfiguration' : 'configureImmediately', data).length
-  } catch {
-    return null
-  }
-}
-
-export function multiSendInner(data: string): string | null {
-  try {
-    return String(MULTISEND_IFACE.decodeFunctionData('multiSend', data)[0])
-  } catch {
-    return null
   }
 }

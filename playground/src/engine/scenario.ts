@@ -3,7 +3,6 @@
  */
 import { EngineInputError, eqAddr, nameOf, parseAmount, resolveAddress } from './book.ts'
 import { describeChain } from './errors.ts'
-import { makeMessageFor } from './messages.ts'
 import { balanceOf } from './safe.ts'
 import { simulate } from './simulate.ts'
 import {
@@ -166,4 +165,3 @@ export function runChallenge(challenge: Challenge, rules: RuleSpec[]): Challenge
   return { solved, results, ruleCount, stars: stars(solved, ruleCount, challenge.parRules) }
 }
 
-export { makeMessageFor }

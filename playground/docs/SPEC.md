@@ -264,8 +264,14 @@ effect; anything else follows the "no code" rule.
   without a rule (§7 step 1 runs for every step), but a step checked after `applyConfiguration` in
   the same batch is checked against the rules from before the batch (README "Guard Removal").
 - **Delegatecall** to anything other than MultiSend: runs "unknown code with full control of the
-  Safe"; it succeeds and changes nothing, with a `warn` effect.
-- **People, modules, `MysteryContract`, `Zero`**: no code; any call succeeds, ETH is received.
+  Safe"; it succeeds and changes nothing, with a `warn` effect. A delegatecall into a contract the
+  playground knows runs that contract's code against the Safe's own (empty) storage, as on chain:
+  e.g. a token `transfer` of a non-zero amount → `ERC20InsufficientBalance`, WETH `withdraw` of a
+  non-zero amount → `Reverted`, an `authorized` Safe function → `GS031`, a module → `Reverted`.
+- **People, `MysteryContract`, `Zero`**: no code; any call succeeds, ETH is received.
+- **Modules** (`AllowanceModule`, `RecoveryModule`) are `TestModule` contracts on chain: code with
+  one function and no `receive` or `fallback`, so any call or ETH sent to them → `Reverted`, and
+  they hold no key (they cannot co-sign). Only people and `CoSigner` can sign.
 
 ## 10. Confirming a rule (`_confirmPolicy`)
 
@@ -285,7 +291,7 @@ selector, function signature, Solidity error). Voice (from the Safe Research des
 declarative, no emoji, no em dashes; write identifiers exactly as the code does in `tech`.
 
 Event ids are stable codes so the UI can draw the pipeline: `safe.signatures`, `safe.nonce`,
-`safe.noGuard`, `guard.gasPrice`, `guard.safeTxGas`, `engine.allowedCall`, `engine.guardTarget`,
+`safe.noGuard`, `safe.module` (module enabled check), `safe.context` (context ignored on the module path), `guard.gasPrice`, `guard.safeTxGas`, `engine.allowedCall`, `engine.guardTarget`,
 `engine.selector`, `engine.lookup.exact`, `engine.lookup.fallback`, `engine.lookup.none`,
 `policy.check`, `policy.state`, `multisend.step`, `exec.call`, `exec.effect`, `exec.revert`,
 `guard.after`, `commit`, `rollback`.

@@ -25,10 +25,6 @@ export function revert(error: string, extra: Omit<Fault, 'error'> = {}): never {
   throw new Revert({ error, ...extra })
 }
 
-/** Empty revert data. */
-export function reverted(message?: string): never {
-  throw new Revert({ error: 'Reverted', message })
-}
 
 export function toSimError(
   fault: Fault,

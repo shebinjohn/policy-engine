@@ -821,6 +821,20 @@ describe('§9 execution', () => {
     assert.ok(r.effects.some((e) => e.kind === 'note'))
   })
 
+  it('a delegatecall into a known contract runs its code against the Safe storage', () => {
+    blocked(w, { ...usdc('Dave', '1'), operation: 'DELEGATECALL' }, 'execution:ERC20InsufficientBalance')
+    ok(w, { ...usdc('Dave', '0'), operation: 'DELEGATECALL' })
+    blocked(w, { to: 'WETH', operation: 'DELEGATECALL', call: { fn: 'withdraw', args: ['1'] } }, 'execution:Reverted')
+    blocked(w, { to: 'Safe', operation: 'DELEGATECALL', call: { fn: 'setGuard', args: ['Zero'] } }, 'execution:GS031')
+    blocked(w, { to: 'AllowanceModule', operation: 'DELEGATECALL' }, 'execution:Reverted')
+  })
+
+  it('modules are contracts with no receive or fallback, and hold no key', () => {
+    blocked(w, { to: 'AllowanceModule', value: '1' }, 'execution:Reverted')
+    blocked(w, { to: 'RecoveryModule' }, 'execution:Reverted')
+    ok(w, { to: 'MysteryContract', value: '1', data: '0x12345678' })
+  })
+
   it('a one-time grant spent in the check is rolled back when a later step fails', () => {
     const g = createWorld(base({ rules: [MULTISEND_RULE, { target: 'USDC', selector: 'transfer', policy: 'ERC20TransferPolicy', config: { recipients: [{ account: 'Dave', permission: 'ONCE' }, { account: 'Erin', permission: 'ALWAYS' }] } }] }))
     const r = blocked(g, batch([usdcStep('Dave', '100'), usdcStep('Erin', '9999')]), 'execution:ERC20InsufficientBalance')

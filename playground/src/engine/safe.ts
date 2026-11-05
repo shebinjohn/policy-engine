@@ -31,7 +31,7 @@ import {
 } from './catalog.ts'
 import { confirmPolicy } from './engine.ts'
 import { Revert, type Fault } from './errors.ts'
-import { describeCall, E, formatTime, T } from './messages.ts'
+import { describeCall, E, formatTime, genericMessage, T } from './messages.ts'
 import type { Effect, RuleSpec, TraceEvent, TraceStatus, World } from './types.ts'
 
 export interface ExecCall {
@@ -178,7 +178,10 @@ function callFrom(x: ExecCtx, from: string, call: ExecCall, at: Where): void {
   } catch (e) {
     if (e instanceof Revert && !traced.has(e)) {
       traced.add(e)
-      event(x, at, 'exec.revert', 'fail', T.execRevert(e.fault.message ?? e.fault.error), { tech: revertTech(e.fault) })
+      event(x, at, 'exec.revert', 'fail', T.execRevert(who(x, call.to)), {
+        detail: e.fault.message ?? genericMessage(e.fault.error),
+        tech: revertTech(e.fault)
+      })
     }
     throw e
   }
@@ -653,7 +656,10 @@ function delegateFromSafe(x: ExecCtx, call: ExecCall, at: Where): void {
   } catch (e) {
     if (e instanceof Revert && !traced.has(e)) {
       traced.add(e)
-      event(x, at, 'exec.revert', 'fail', T.execRevert(e.fault.message ?? e.fault.error), { tech: revertTech(e.fault) })
+      event(x, at, 'exec.revert', 'fail', T.execRevert(who(x, call.to)), {
+        detail: e.fault.message ?? genericMessage(e.fault.error),
+        tech: revertTech(e.fault)
+      })
     }
     throw e
   }

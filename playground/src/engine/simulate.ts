@@ -3,7 +3,7 @@
  * Safe.execTransactionFromModule (module path, SPEC §6), with the SafePolicyGuard hooks.
  * Pure: works on a structuredClone of the world and returns the input world on failure.
  */
-import { accessSelector, decodeSelector, type Op } from './access.ts'
+import { accessSelector, decodeSelector } from './access.ts'
 import { EngineInputError, eqAddr, resolveAddress, shortLabel } from './book.ts'
 import { SELECTORS, configurationRootOf, contextFor, encodeTxCall, ruleToConfiguration, toEncodedTx, type EncodedCall } from './catalog.ts'
 import { checkTransaction, getPolicy, type EngineCtx, type Matched } from './engine.ts'
@@ -342,11 +342,6 @@ function moduleTx(run: Run, rootHints: Record<string, RuleSpec[]>): SimResult {
   }
   ev(run, 'guard.after', 'Guard', 'pass', T.afterOk, { tech: 'checkAfterModuleExecution(hash, true)' })
   return okResult(run, matched)
-}
-
-/** Used by `lookup()`: getPolicy without side effects. */
-export function lookupCall(world: World, to: string, data: string, op: Op) {
-  return getPolicy(world, to, data, op)
 }
 
 export type { Matched }
