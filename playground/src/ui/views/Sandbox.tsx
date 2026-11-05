@@ -76,6 +76,17 @@ function boot(preset: Preset): State {
 
 type Tab = 'safe' | 'build' | 'result'
 
+/** Does this transaction propose or set exactly these drafted rules, at the top or as a batch step? */
+function sendsRules(tx: TxSpec, rules: RuleSpec[]): boolean {
+  if (rules.length === 0) return false
+  const calls = [tx.call, ...(tx.call?.batch ?? []).map((b) => b.call)]
+  return calls.some((c) => {
+    if (!c || (c.fn !== 'requestConfiguration' && c.fn !== 'configureImmediately')) return false
+    const sent = new Set((c.configurations ?? []).map((r) => JSON.stringify(r)))
+    return rules.every((r) => sent.has(JSON.stringify(r)))
+  })
+}
+
 function hardenTx(rules: RuleSpec[], signers: string[] | undefined): TxSpec {
   return {
     label: 'Harden in one batch',
@@ -180,6 +191,8 @@ export function Sandbox({ seed }: { seed?: Seed | null }) {
       log: [...s.log, logEntry(s.world, tx, result)],
       example: false,
       setupError: undefined,
+      // A change set that went out (alone or as a batch step) is no longer a draft.
+      changeSet: result.ok && sendsRules(tx, s.changeSet) ? [] : s.changeSet,
       ...(after ? after(result) : {})
     }))
     setTab('result')
@@ -202,9 +215,9 @@ export function Sandbox({ seed }: { seed?: Seed | null }) {
   const staged = (e: TableEntry) => changeSet.some((r) => sameRuleKey(world, r, ruleSpecFromEntry(world, e)))
 
   const propose = () =>
-    runTx(managementTx('requestConfiguration', changeSet, `Propose ${plural(changeSet.length, 'change')}`), (r) => (r.ok ? { changeSet: [] } : {}))
+    runTx(managementTx('requestConfiguration', changeSet, `Propose ${plural(changeSet.length, 'change')}`))
   const setNow = () =>
-    runTx(managementTx('configureImmediately', changeSet, `Set ${plural(changeSet.length, 'rule')} immediately`), (r) => (r.ok ? { changeSet: [] } : {}))
+    runTx(managementTx('configureImmediately', changeSet, `Set ${plural(changeSet.length, 'rule')} immediately`))
   const apply = (root: string) => runTx(managementTx('applyConfiguration', world.roots[root].configurations, 'Apply change set'))
   const cancel = (root: string) => runTx(managementTx('invalidateRoot', world.roots[root].configurations, 'Cancel change set'))
 

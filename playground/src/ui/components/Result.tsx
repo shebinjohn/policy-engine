@@ -116,13 +116,13 @@ function EventRow({ ev }: { ev: TraceEvent }) {
   )
 }
 
-function SubBlock({ sub, path }: { sub: SubItem; path: 'owner' | 'module' }) {
+function SubBlock({ sub, path, titles }: { sub: SubItem; path: 'owner' | 'module'; titles: string[] }) {
   const ran = sub.stages.filter((s) => s.items.length > 0)
   return (
     <li className={`pipe-sub is-${sub.status}`}>
       <div className="pipe-sub-head">
         <span className="pipe-sub-index">{sub.index >= 0 ? `Step ${sub.index + 1}` : 'Nested check'}</span>
-        <span className="pipe-sub-title">{sub.header?.title ?? ''}</span>
+        <span className="pipe-sub-title">{sub.header?.title ?? titles[sub.index] ?? ''}</span>
         <Status status={sub.status} compact label={sub.status === 'pass' ? 'Passed' : sub.status === 'fail' ? 'Failed' : sub.status === 'warn' ? 'Warning' : sub.status === 'none' ? 'Not reached' : 'Done'} />
       </div>
       {sub.header?.detail ? <p className="pipe-event-detail">{sub.header.detail}</p> : null}
@@ -136,7 +136,7 @@ function SubBlock({ sub, path }: { sub: SubItem; path: 'owner' | 'module' }) {
               </span>
               <ul className="pipe-events">
                 {st.items.map((it, i) => (
-                  <Item key={i} it={it} path={path} />
+                  <Item key={i} it={it} path={path} titles={[]} />
                 ))}
               </ul>
             </li>
@@ -147,11 +147,11 @@ function SubBlock({ sub, path }: { sub: SubItem; path: 'owner' | 'module' }) {
   )
 }
 
-function Item({ it, path }: { it: PipeItem; path: 'owner' | 'module' }) {
-  return it.type === 'event' ? <EventRow ev={it.ev} /> : <SubBlock sub={it} path={path} />
+function Item({ it, path, titles }: { it: PipeItem; path: 'owner' | 'module'; titles: string[] }) {
+  return it.type === 'event' ? <EventRow ev={it.ev} /> : <SubBlock sub={it} path={path} titles={titles} />
 }
 
-function StageView({ st, path, index }: { st: Stage; path: 'owner' | 'module'; index: number }) {
+function StageView({ st, path, index, titles }: { st: Stage; path: 'owner' | 'module'; index: number; titles: string[] }) {
   const label = st.key === 'policy' && st.policy ? `Policy: ${policyLabel(st.policy)}` : stageLabel(st.key, path, false)
   return (
     <li className={`pipe-stage is-${st.status}`} style={{ ['--i' as string]: index }}>
@@ -162,7 +162,7 @@ function StageView({ st, path, index }: { st: Stage; path: 'owner' | 'module'; i
       {st.items.length > 0 ? (
         <ul className="pipe-events">
           {st.items.map((it, i) => (
-            <Item key={i} it={it} path={path} />
+            <Item key={i} it={it} path={path} titles={titles} />
           ))}
         </ul>
       ) : null}
@@ -170,7 +170,18 @@ function StageView({ st, path, index }: { st: Stage; path: 'owner' | 'module'; i
   )
 }
 
-export function Pipeline({ result, path, animate = false }: { result: SimResult; path: 'owner' | 'module'; animate?: boolean }) {
+export function Pipeline({
+  result,
+  path,
+  animate = false,
+  titles = []
+}: {
+  result: SimResult
+  path: 'owner' | 'module'
+  animate?: boolean
+  /** Plain titles of the batch steps, used when the trace does not name a step. */
+  titles?: string[]
+}) {
   const { stages, end } = useMemo(() => {
     const parts = splitEnd(result.trace)
     return { stages: buildStages(parts.main), end: parts.end }
@@ -185,7 +196,7 @@ export function Pipeline({ result, path, animate = false }: { result: SimResult;
     <div className="scroll-x">
       <ol className={`pipe${animate ? ' is-build' : ''}`} aria-label="Decision path">
         {stages.map((st, i) => (
-          <StageView key={st.key} st={st} path={path} index={i} />
+          <StageView key={st.key} st={st} path={path} index={i} titles={titles} />
         ))}
         <li className="pipe-stage pipe-end" style={{ ['--i' as string]: stages.length }}>
           <div className="pipe-head">
@@ -369,7 +380,7 @@ export function ResultView({
       <GuardNotes result={result} tx={tx} world={world} />
       <section className="result-section" aria-label="Decision path">
         <H className="section-title">Decision path</H>
-        <Pipeline result={result} path={tx.path ?? 'owner'} animate={animate} />
+        <Pipeline result={result} path={tx.path ?? 'owner'} animate={animate} titles={(tx.call?.batch ?? []).map((b) => describeCall(world, b))} />
       </section>
       <section className="result-section" aria-label="What changed">
         <H className="section-title">What changed</H>
