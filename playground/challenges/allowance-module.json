@@ -2,7 +2,7 @@
   "id": "allowance-module",
   "level": 3,
   "title": "The Allowance Module",
-  "brief": "The team installed the Allowance Module so the operations lead can pay Dave's USDC invoices without gathering signatures. From now on, USDC leaves the Safe only through that module. Everything else the owners do still needs the co-signer.",
+  "brief": "The team installed the Allowance Module so the operations lead can pay Dave's USDC invoices without gathering signatures. From now on, USDC leaves the Safe only through that module, and the module does nothing else. Everything else the owners do still needs the co-signer.",
   "setup": {
     "modules": [
       "AllowanceModule",
@@ -92,6 +92,26 @@
         }
       },
       "want": "pass"
+    },
+    {
+      "label": "The owners send 1 ETH to Dave, co-signed",
+      "tx": {
+        "to": "Dave",
+        "value": "1",
+        "context": {
+          "type": "cosignature",
+          "signer": "CoSigner"
+        }
+      },
+      "want": "pass"
+    },
+    {
+      "label": "The owners send 1 ETH to Mallory without the co-signer",
+      "tx": {
+        "to": "Mallory",
+        "value": "1"
+      },
+      "want": "block"
     },
     {
       "label": "The Allowance Module sends 1 ETH to Erin",

@@ -85,7 +85,7 @@
         "by": "execution",
         "error": "GuardAlreadyEnabled"
       },
-      "note": "No guard is installed yet, so nothing checks this batch. But the first step installs the guard, and instant rule setup only works while no guard is in place. That step fails, and the whole batch is undone with it.",
+      "note": "No guard is installed yet, so nothing checks this batch. But the first step installs the guard, and instant rule setup only works while no guard is in place. The second step fails, and the whole batch is undone with it.",
       "expectState": {
         "txGuard": null,
         "moduleGuard": null

@@ -3,7 +3,7 @@
   "chapter": "changing-the-rules",
   "order": 21,
   "title": "The Waiting Period",
-  "summary": "A new rule is requested inside a payment batch, refused while it waits, and applied after an hour.",
+  "summary": "A new rule is requested inside a payment batch, refused while it waits, and applied after an hour. A second request is cancelled and never applies.",
   "lesson": "After hardening, every rule change is requested first and applied after the waiting period, one hour here. The wait gives the owners time to spot and cancel a change they did not expect.",
   "readme": "setup-with-safe",
   "setup": {
@@ -108,6 +108,50 @@
       "note": "The request is recorded, but the hour has not passed."
     },
     {
+      "do": "tx",
+      "label": "Ask for a rule that allows adding owners",
+      "tx": {
+        "to": "PolicyGuard",
+        "call": {
+          "fn": "requestConfiguration",
+          "configurations": [
+            {
+              "target": "Safe",
+              "selector": "addOwnerWithThreshold",
+              "policy": "AllowPolicy",
+              "note": "Owners may add owners"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "Suppose two owners ask for this without telling the third. It waits like the first request."
+    },
+    {
+      "do": "tx",
+      "label": "Cancel that request",
+      "tx": {
+        "to": "PolicyGuard",
+        "call": {
+          "fn": "invalidateRoot",
+          "configurations": [
+            {
+              "target": "Safe",
+              "selector": "addOwnerWithThreshold",
+              "policy": "AllowPolicy",
+              "note": "Owners may add owners"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "The team spots it during the wait and cancels it. Cancelling needs no rule, like asking."
+    },
+    {
       "do": "wait",
       "label": "Wait one hour",
       "seconds": 3600
@@ -132,6 +176,30 @@
       "expect": {
         "ok": true
       }
+    },
+    {
+      "do": "tx",
+      "label": "Apply the cancelled rule",
+      "tx": {
+        "to": "PolicyGuard",
+        "call": {
+          "fn": "applyConfiguration",
+          "configurations": [
+            {
+              "target": "Safe",
+              "selector": "addOwnerWithThreshold",
+              "policy": "AllowPolicy",
+              "note": "Owners may add owners"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "RootNotConfigured"
+      },
+      "note": "The hour has passed, but the request is gone, so this rule can never be applied."
     },
     {
       "do": "tx",

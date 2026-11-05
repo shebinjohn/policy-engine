@@ -8,6 +8,14 @@
       "ETH": "5",
       "USDC": "10000"
     },
+    "allowances": [
+      {
+        "token": "USDC",
+        "owner": "Safe",
+        "spender": "Mallory",
+        "amount": "5000"
+      }
+    ],
     "rules": [
       {
         "fallback": "CALL",

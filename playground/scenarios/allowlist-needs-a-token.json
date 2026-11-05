@@ -148,6 +148,7 @@
       },
       "expect": {
         "ok": false,
+        "by": "guard",
         "error": "PolicyReverted",
         "policy": "ERC20TransferPolicy",
         "reason": {
@@ -164,6 +165,7 @@
       },
       "expect": {
         "ok": false,
+        "by": "guard",
         "error": "AccessDenied",
         "policy": null
       },

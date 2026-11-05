@@ -125,6 +125,14 @@
       "want": "block"
     },
     {
+      "label": "Send 1 ETH to Mallory",
+      "tx": {
+        "to": "Mallory",
+        "value": "1"
+      },
+      "want": "block"
+    },
+    {
       "label": "Send 1 ETH to Erin, co-signed",
       "tx": {
         "to": "Erin",
@@ -137,12 +145,16 @@
       "want": "pass"
     },
     {
-      "label": "Send 1 ETH to Mallory",
+      "label": "Send 1 ETH to Dave, co-signed",
       "tx": {
-        "to": "Mallory",
-        "value": "1"
+        "to": "Dave",
+        "value": "1",
+        "context": {
+          "type": "cosignature",
+          "signer": "CoSigner"
+        }
       },
-      "want": "block"
+      "want": "pass"
     }
   ],
   "hints": [

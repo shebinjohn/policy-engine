@@ -2,7 +2,7 @@
   "id": "night-shift",
   "level": 5,
   "title": "The Night Shift",
-  "brief": "Overnight, the owners sign and an automated co-signer approves each transaction. Batches are common, and the co-signer signs every step. Dave, the vendor, can be sent plain ETH without waiting for the co-signer. No one may add an owner, whoever co-signs.",
+  "brief": "Overnight, the owners sign and an automated co-signer approves each transaction. Batches are common, and the co-signer signs every step. Dave, the vendor, can be sent plain ETH without waiting for the co-signer. No one may add an owner or run unknown code inside the Safe, whoever co-signs.",
   "setup": {
     "balances": {
       "ETH": "10",
@@ -117,6 +117,32 @@
       "tx": {
         "to": "Erin",
         "value": "1",
+        "context": {
+          "type": "cosignature",
+          "signer": "CoSigner"
+        }
+      },
+      "want": "pass"
+    },
+    {
+      "label": "Send 1 ETH to Erin",
+      "tx": {
+        "to": "Erin",
+        "value": "1"
+      },
+      "want": "block"
+    },
+    {
+      "label": "Approve Dave to spend 500 USDC, co-signed",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "approve",
+          "args": [
+            "Dave",
+            "500"
+          ]
+        },
         "context": {
           "type": "cosignature",
           "signer": "CoSigner"

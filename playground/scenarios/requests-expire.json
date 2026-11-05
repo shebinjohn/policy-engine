@@ -81,6 +81,30 @@
         "ok": true
       },
       "note": "An expired request can simply be made again. The hour starts over."
+    },
+    {
+      "do": "tx",
+      "label": "Apply it right away",
+      "tx": {
+        "to": "PolicyGuard",
+        "call": {
+          "fn": "applyConfiguration",
+          "configurations": [
+            {
+              "target": "Safe",
+              "selector": "enableModule",
+              "policy": "AllowPolicy",
+              "note": "Owners may add modules"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "RootConfigurationPending"
+      },
+      "note": "The new request waits its own hour."
     }
   ]
 }

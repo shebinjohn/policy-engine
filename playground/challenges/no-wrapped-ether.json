@@ -129,6 +129,6 @@
       }
     }
   ],
-  "explain": "WETH wraps ETH for empty calldata and for any function it does not know. Those calls miss the deny rule and land on the catch-all. A blocklist cannot win against a fallback, but an allowlist can: with no permissive catch-all, every call to WETH is denied by default.",
+  "explain": "WETH wraps ETH for empty calldata and for any function it does not know. Those calls miss the deny rule and land on the catch-all. A blocklist cannot win against a fallback: denying each made-up function here passes these tests and misses the next one. An allowlist can: with no permissive catch-all, every call to WETH is denied by default. Always Allow on the two new rules works too; the plain ETH policy and the recipient allowlist also keep them to plain ETH and to Erin.",
   "testMode": "sequence"
 }
