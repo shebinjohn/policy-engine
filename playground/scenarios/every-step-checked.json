@@ -3,7 +3,7 @@
   "chapter": "batches",
   "order": 12,
   "title": "Every Step Is Checked",
-  "summary": "The batch rule lets a payroll batch in. It passes only if every step inside it passes its own rule.",
+  "summary": "A payroll batch passes only if the batch has a rule and every step inside it passes its own.",
   "lesson": "A batch needs two kinds of rules: one that opens the batch, and one for every step inside it. If any step is refused, nothing in the batch runs.",
   "readme": "policies",
   "setup": {
@@ -170,6 +170,46 @@
         }
       },
       "note": "The batch rule only opens the batch. Each step needs a rule of its own, and nothing covers sending ETH."
+    },
+    {
+      "do": "tx",
+      "label": "Run payroll as a plain call",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "CALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "USDC",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Dave",
+                  "4000"
+                ]
+              }
+            },
+            {
+              "to": "USDC",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Erin",
+                  "3500"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "AccessDenied",
+        "policy": null
+      },
+      "note": "The batch rule names multiSend as a DELEGATECALL. Sent as a plain call, the batch matches no rule, so it is refused before any step is checked."
     }
   ]
 }

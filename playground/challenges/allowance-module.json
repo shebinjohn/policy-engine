@@ -82,6 +82,22 @@
       "want": "block"
     },
     {
+      "label": "The Allowance Module approves Mallory to spend 800 USDC",
+      "tx": {
+        "path": "module",
+        "module": "AllowanceModule",
+        "to": "USDC",
+        "call": {
+          "fn": "approve",
+          "args": [
+            "Mallory",
+            "800"
+          ]
+        }
+      },
+      "want": "block"
+    },
+    {
       "label": "The owners send 1 ETH to Erin, co-signed",
       "tx": {
         "to": "Erin",
@@ -106,9 +122,9 @@
       "want": "pass"
     },
     {
-      "label": "The owners send 1 ETH to Mallory without the co-signer",
+      "label": "The owners send 1 ETH to Dave without the co-signer",
       "tx": {
-        "to": "Mallory",
+        "to": "Dave",
         "value": "1"
       },
       "want": "block"
@@ -147,5 +163,5 @@
       }
     }
   ],
-  "explain": "One rule serves owners and modules alike, so the policy has to tell them apart. The module allowlist passes only transactions from modules on its list: owners and the Recovery Module are refused. It checks who sends, not where the tokens go. Limits on amounts and recipients are the Allowance Module's own job."
+  "explain": "One rule serves owners and modules alike, so the policy has to tell them apart. The module allowlist passes only transactions from modules on its list: owners and the Recovery Module are refused. It checks who sends, not where the tokens go. Limits on amounts and recipients are the Allowance Module's own job. Everything else falls to the co-signer catch-all, which refuses every module transaction, so the module can do nothing else."
 }
