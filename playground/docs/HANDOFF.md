@@ -62,7 +62,23 @@ All from the playground root (today `policy-engine/playground/`, later the stand
 | `npm run conformance` | Replays every scenario, challenge and fixture on the real contracts in Hardhat | yes |
 | `npm run build` | Writes `dist/policy-playground.html` (Claude artifact page) and `dist/site/index.html` (static hosting) | yes |
 
-State at handoff: 23 scenarios, 10 challenges, 105 engine tests, 42 conformance cases, all green.
+State at handoff: 24 scenarios, 10 challenges, 200 tests (`npm test`, one fixture skipped on
+purpose), 58 conformance cases on chain (content plus fixtures, including the reproducers from the
+differential test in `conformance/fixtures/fuzz/`), all green.
+
+Quality gates that live in the tests, so keep them green rather than weakening them:
+
+- `test/fixtures.test.ts`: the engine must match the chain outcome pinned in every fixture.
+- `test/content.test.ts`: every scenario step matches; every challenge solution solves and its
+  starting rules do not; par equals the solution size; every blocked test in a solution is blocked
+  by the guard; switching any ALWAYS/ONCE in a solution, or making any single-rule edit, must
+  unsolve it (except the listed legitimate alternatives); blocked scenario steps name their error.
+- `test/engine-fuzz.test.ts`: random calldata and contexts never make the engine throw.
+- `test/share.test.ts`: share codes round-trip for every preset, scenario and solution.
+
+To hunt for new engine bugs, generate random scenarios and replay them on chain with
+`CONFORMANCE_EXTRA=<dir> npm run conformance`; every minimal reproducer goes into
+`conformance/fixtures/fuzz/` with the chain outcome as `expect`.
 
 ## 5. Moving to a standalone repository
 
@@ -147,6 +163,16 @@ hand-edit `dist/`.
 - **Copy**: errors in `src/content/errors.ts` (policy-specific keys `<Policy>.<Error>` win over bare
   names), policies in `policies.ts`, glossary in `glossary.ts`, trace lines in
   `src/engine/messages.ts`.
+
+## 8a. UX principles
+
+`docs/research/UX_RESEARCH.md` (sources) and `docs/research/UX_DECISIONS.md` (what was adopted,
+deferred and avoided, and why) set the direction. In short: ask for a prediction before a reveal,
+name the sharp edge when it decides a run (`src/ui/lib/sharpEdges.ts`, driven by trace ids), make
+every debated state a link (`#scenario-<id>-step-<n>`, and a versioned `[a-z0-9]` share code with a
+`#run-<code>` link, `src/ui/lib/share.ts`; the artifact link only carries a plain `#name`), hints
+point before they solve, progress stays calm, and nothing is locked. Read the "Avoid" list before
+adding anything game-like.
 
 ## 9. Known gaps
 
