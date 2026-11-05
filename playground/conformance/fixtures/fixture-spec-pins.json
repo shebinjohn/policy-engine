@@ -1,0 +1,646 @@
+{
+  "id": "fixture-spec-pins",
+  "chapter": "Harness fixtures",
+  "order": 9007,
+  "title": "SPEC Pins",
+  "summary": "Execution edge cases of Safe 1.5.0, MultiSendCallOnly and WETH9, with no guard installed, pinned on chain.",
+  "lesson": "Where SPEC section 9 and the bytecode disagree, these steps record what the chain does.",
+  "setup": {
+    "balances": {
+      "ETH": "5",
+      "USDC": "100",
+      "WETH": "1"
+    },
+    "modules": [
+      "AllowanceModule"
+    ],
+    "guards": {
+      "transaction": false,
+      "module": false
+    }
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "setGuard(Mallory) reverts with empty data",
+      "tx": {
+        "to": "Safe",
+        "call": {
+          "fn": "setGuard",
+          "args": [
+            "Mallory"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "Reverted"
+      },
+      "note": "SPEC \u00a79 says GS300. Safe 1.5.0 calls supportsInterface on the new guard; an address with no code (or a contract without that function) makes the call revert with empty data before GS300 can fire."
+    },
+    {
+      "do": "tx",
+      "label": "setGuard(USDC) reverts with empty data",
+      "tx": {
+        "to": "Safe",
+        "call": {
+          "fn": "setGuard",
+          "args": [
+            "USDC"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "Reverted"
+      },
+      "note": "Same as above: USDC has no supportsInterface, so the call reverts with empty data."
+    },
+    {
+      "do": "tx",
+      "label": "setGuard(AllowPolicy) reverts with empty data",
+      "tx": {
+        "to": "Safe",
+        "call": {
+          "fn": "setGuard",
+          "args": [
+            "AllowPolicy"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "Reverted"
+      },
+      "note": "Same: policies do not implement supportsInterface."
+    },
+    {
+      "do": "tx",
+      "label": "setGuard(Safe) reverts with empty data",
+      "tx": {
+        "to": "Safe",
+        "call": {
+          "fn": "setGuard",
+          "args": [
+            "Safe"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "Reverted"
+      },
+      "note": "Same: the Safe has no fallback handler, so supportsInterface returns no data and decoding the bool reverts."
+    },
+    {
+      "do": "tx",
+      "label": "setModuleGuard(Mallory) reverts with empty data",
+      "tx": {
+        "to": "Safe",
+        "call": {
+          "fn": "setModuleGuard",
+          "args": [
+            "Mallory"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "Reverted"
+      },
+      "note": "SPEC \u00a79 says GS301; same mechanism as setGuard."
+    },
+    {
+      "do": "tx",
+      "label": "ETH self-transfer with unknown calldata reverts",
+      "tx": {
+        "to": "Safe",
+        "value": "1",
+        "data": "0x12345678"
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "Reverted"
+      },
+      "note": "SPEC \u00a79 says any other calldata or a plain ETH self-transfer succeeds. Calldata without value does; calldata with value hits the Safe 1.5.0 fallback, which is not payable, and reverts with empty data."
+    },
+    {
+      "do": "tx",
+      "label": "unknown calldata to Safe succeeds",
+      "tx": {
+        "to": "Safe",
+        "data": "0x12345678"
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "do": "tx",
+      "label": "plain ETH self-transfer succeeds",
+      "tx": {
+        "to": "Safe",
+        "value": "1"
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "do": "tx",
+      "label": "ETH to token reverts",
+      "tx": {
+        "to": "USDC",
+        "value": "1"
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "Reverted"
+      }
+    },
+    {
+      "do": "tx",
+      "label": "unknown selector to token reverts",
+      "tx": {
+        "to": "USDC",
+        "data": "0x12345678"
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "Reverted"
+      }
+    },
+    {
+      "do": "tx",
+      "label": "insufficient ETH -> Reverted",
+      "tx": {
+        "to": "Dave",
+        "value": "100"
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "Reverted"
+      }
+    },
+    {
+      "do": "tx",
+      "label": "MultiSend as CALL with value sub-tx",
+      "tx": {
+        "to": "MultiSend",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "Dave",
+              "value": "0.1"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "Reverted"
+      }
+    },
+    {
+      "do": "tx",
+      "label": "MultiSend as CALL with zero-value sub-tx",
+      "tx": {
+        "to": "MultiSend",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "Dave"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "do": "tx",
+      "label": "MultiSend as CALL with ETH attached",
+      "tx": {
+        "to": "MultiSend",
+        "value": "0.1",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "Dave",
+              "value": "0.1"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "expectState": {
+        "balances": {
+          "Dave": {
+            "ETH": "0.1"
+          }
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "MultiSend sub-tx delegatecall reverts",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "MysteryContract",
+              "operation": "DELEGATECALL"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "Reverted"
+      }
+    },
+    {
+      "do": "tx",
+      "label": "MultiSend sub-tx to 0x0 is the Safe",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "0x0000000000000000000000000000000000000000",
+              "call": {
+                "fn": "changeThreshold",
+                "args": [
+                  3
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "expectState": {
+        "threshold": 3
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Back to 2 of 3",
+      "tx": {
+        "to": "Safe",
+        "call": {
+          "fn": "changeThreshold",
+          "args": [
+            2
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Delegatecall to MysteryContract",
+      "tx": {
+        "to": "MysteryContract",
+        "operation": "DELEGATECALL",
+        "data": "0xdeadbeef"
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "do": "tx",
+      "label": "WETH fallback deposit",
+      "tx": {
+        "to": "WETH",
+        "value": "1",
+        "data": "0xdeadbeef"
+      },
+      "expect": {
+        "ok": true
+      },
+      "expectState": {
+        "balances": {
+          "Safe": {
+            "WETH": "2"
+          }
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "WETH withdraw",
+      "tx": {
+        "to": "WETH",
+        "call": {
+          "fn": "withdraw",
+          "args": [
+            "1.5"
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "expectState": {
+        "balances": {
+          "Safe": {
+            "WETH": "0.5"
+          }
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "WETH withdraw too much",
+      "tx": {
+        "to": "WETH",
+        "call": {
+          "fn": "withdraw",
+          "args": [
+            "1"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "Reverted"
+      }
+    },
+    {
+      "do": "tx",
+      "label": "WETH transfer too much",
+      "tx": {
+        "to": "WETH",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Dave",
+            "1"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "Reverted"
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Add Dave as owner, threshold 2",
+      "tx": {
+        "to": "Safe",
+        "call": {
+          "fn": "addOwnerWithThreshold",
+          "args": [
+            "Dave",
+            2
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "expectState": {
+        "owners": [
+          "Alice",
+          "Bob",
+          "Carol",
+          "Dave"
+        ]
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Remove Bob, threshold 2",
+      "tx": {
+        "to": "Safe",
+        "call": {
+          "fn": "removeOwner",
+          "args": [
+            "Bob",
+            2
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "expectState": {
+        "owners": [
+          "Alice",
+          "Carol",
+          "Dave"
+        ]
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Remove Mallory (not an owner)",
+      "tx": {
+        "to": "Safe",
+        "call": {
+          "fn": "removeOwner",
+          "args": [
+            "Mallory",
+            2
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "GS205"
+      }
+    },
+    {
+      "do": "tx",
+      "label": "changeThreshold 5",
+      "tx": {
+        "to": "Safe",
+        "call": {
+          "fn": "changeThreshold",
+          "args": [
+            5
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "GS201"
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Enable RecoveryModule",
+      "tx": {
+        "to": "Safe",
+        "call": {
+          "fn": "enableModule",
+          "args": [
+            "RecoveryModule"
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "expectState": {
+        "modules": [
+          "AllowanceModule",
+          "RecoveryModule"
+        ]
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Disable AllowanceModule",
+      "tx": {
+        "to": "Safe",
+        "call": {
+          "fn": "disableModule",
+          "args": [
+            "AllowanceModule"
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "expectState": {
+        "modules": [
+          "RecoveryModule"
+        ]
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Disable AllowanceModule again",
+      "tx": {
+        "to": "Safe",
+        "call": {
+          "fn": "disableModule",
+          "args": [
+            "AllowanceModule"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "GS103"
+      }
+    },
+    {
+      "do": "tx",
+      "label": "No guard: configureImmediately with a bad rule",
+      "tx": {
+        "to": "PolicyGuard",
+        "call": {
+          "fn": "configureImmediately",
+          "configurations": [
+            {
+              "target": "USDC",
+              "selector": "transfer",
+              "policy": "NativeTransferPolicy"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "PolicyConfigurationFailed"
+      }
+    },
+    {
+      "do": "tx",
+      "label": "No guard: configureImmediately ERC20Transfer on approve",
+      "tx": {
+        "to": "PolicyGuard",
+        "call": {
+          "fn": "configureImmediately",
+          "configurations": [
+            {
+              "target": "USDC",
+              "selector": "approve",
+              "policy": "ERC20TransferPolicy"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "InvalidSelector"
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Unknown selector to the guard (no guard installed)",
+      "tx": {
+        "to": "PolicyGuard",
+        "data": "0x12345678"
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "Reverted"
+      }
+    },
+    {
+      "do": "tx",
+      "label": "No guard: safeTxGas with failing call",
+      "tx": {
+        "to": "USDC",
+        "safeTxGas": "100000",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Dave",
+            "1000"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "CallFailed"
+      },
+      "expectState": {
+        "nonce": 14
+      },
+      "note": "With safeTxGas set and no guard, Safe 1.5.0 does not revert a failed inner call: it emits ExecutionFailure and still spends the nonce. The harness reports this as CallFailed."
+    }
+  ]
+}

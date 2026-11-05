@@ -45,10 +45,15 @@ function worldOptions(rules?: any) {
   }
 }
 
-/** Mines the next transaction `max(1, pending wait)` seconds after the latest block (SPEC `wait`). */
+/**
+ * Mines the next transaction exactly the accumulated `wait` seconds after the latest block, so a
+ * scenario's timeline is the engine's: transactions between waits share one timestamp. Without
+ * same-timestamp blocks each transaction is at least one second after the previous one.
+ */
 async function advanceClock(world: World): Promise<void> {
   const latest = await helpers.time.latest()
-  await helpers.time.setNextBlockTimestamp(latest + Math.max(1, world.pendingWait))
+  const gap = world.base.sameTimestamp ? world.pendingWait : Math.max(1, world.pendingWait)
+  await helpers.time.setNextBlockTimestamp(latest + gap)
   world.pendingWait = 0
 }
 

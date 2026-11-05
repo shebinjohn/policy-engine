@@ -63,11 +63,11 @@ function ruleSelector(rule: RuleSpec): string {
   return selectorOf(selector)
 }
 
-function encodePermissions(world: World, list: { account: string; permission: string }[] | undefined): string {
+function encodePermissions(world: World, list: { account: string; permission?: string }[] | undefined): string {
   return coder().encode(
     ['tuple(address account, uint8 permission)[]'],
     [
-      (list ?? []).map(({ account, permission }) => {
+      (list ?? []).map(({ account, permission = 'ALWAYS' }) => {
         if (!(permission in PERMISSION)) throw new Error(`unknown permission "${permission}"`)
         return { account: resolve(world, account), permission: PERMISSION[permission] }
       })
@@ -83,15 +83,16 @@ export function encodePolicyConfig(world: World, rule: RuleSpec): string {
     case 'OneTimeAllowPolicy':
       return utils.encodeOneTimeGrantConfig(config.granted ?? true)
     case 'AllowedModulePolicy':
-      return utils.encodeModuleConfig(resolve(world, config.module), config.allowed ?? true)
+      // No module: empty data, so `configure` reverts decoding it (as in the engine).
+      return typeof config.module === 'string' ? utils.encodeModuleConfig(resolve(world, config.module), config.allowed ?? true) : '0x'
     case 'CoSignerPolicy':
-      return utils.encodeCoSignerConfig(resolve(world, config.cosigner))
+      return utils.encodeCoSignerConfig(resolve(world, config.cosigner ?? 'CoSigner'))
     case 'IncreasedThresholdPolicy':
       return utils.encodeIncreasedThresholdConfig(Number(config.maxAbsent ?? 0))
     case 'ERC20TransferPolicy':
-      return encodePermissions(world, config.recipients ?? config.spenders)
+      return encodePermissions(world, config.recipients)
     case 'ERC20ApprovePolicy':
-      return encodePermissions(world, config.spenders ?? config.recipients)
+      return encodePermissions(world, config.spenders)
     default:
       return '0x'
   }
@@ -272,10 +273,14 @@ export function packContextList(items: (string | null)[]): string {
  * sub-transactions' contexts (recursively), or no context if none of them has one.
  */
 export async function buildContext(world: World, env: ContextEnv, spec: ContextSpec | undefined, checked: Checked, isSub: boolean): Promise<string | null> {
-  if (spec === undefined || spec === null) {
+  if (spec === null) return null // an explicit null: no context, even for a batch
+  if (spec === undefined) {
     if (!checked.subs) return null
     const items = await Promise.all(checked.subs.map((sub) => buildContext(world, env, sub.context, sub, true)))
-    return items.some((item) => item !== null) ? packContextList(items) : null
+    if (!items.some((item) => item !== null)) return null
+    // Trailing empty items carry nothing (MultiSendPolicy reads an exhausted list as empty).
+    while (items.length > 0 && items[items.length - 1] === null) items.pop()
+    return packContextList(items)
   }
   switch (spec.type) {
     case 'cosignature': {

@@ -1,0 +1,677 @@
+{
+  "id": "fixture-policy-edges",
+  "chapter": "Harness fixtures",
+  "order": 9008,
+  "title": "Policy Edges",
+  "summary": "One-time grants, ONCE permissions inside a batch, Safenet per-nonce spending, signature checks with a context attached, and the exact delay boundary.",
+  "lesson": "Pins behaviour the engine must reproduce exactly.",
+  "setup": {
+    "balances": {
+      "ETH": "5",
+      "USDC": "100"
+    },
+    "modules": [
+      "AllowanceModule"
+    ],
+    "rules": [
+      {
+        "target": "MultiSend",
+        "selector": "multiSend",
+        "operation": "DELEGATECALL",
+        "policy": "MultiSendPolicy"
+      },
+      {
+        "target": "USDC",
+        "selector": "transfer",
+        "policy": "ERC20TransferPolicy",
+        "config": {
+          "recipients": [
+            {
+              "account": "Dave",
+              "permission": "ONCE"
+            },
+            {
+              "account": "Zero",
+              "permission": "ALWAYS"
+            }
+          ]
+        }
+      },
+      {
+        "target": "USDC",
+        "selector": "approve",
+        "policy": "ERC20ApprovePolicy",
+        "config": {
+          "spenders": [
+            {
+              "account": "Dave",
+              "permission": "ONCE"
+            }
+          ]
+        }
+      },
+      {
+        "target": "Dave",
+        "selector": "none",
+        "policy": "SafenetPolicy"
+      },
+      {
+        "target": "Erin",
+        "selector": "none",
+        "policy": "OneTimeAllowPolicy",
+        "config": {
+          "granted": true
+        }
+      },
+      {
+        "target": "Mallory",
+        "selector": "none",
+        "policy": "DenyPolicy"
+      },
+      {
+        "target": "Carol",
+        "selector": "none",
+        "policy": "CoSignerPolicy",
+        "config": {
+          "cosigner": "CoSigner"
+        }
+      },
+      {
+        "fallback": "DELEGATECALL",
+        "policy": "AllowPolicy"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "do": "tx",
+      "label": "Deny policy",
+      "tx": {
+        "to": "Mallory",
+        "value": "1"
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "AccessDenied",
+        "policy": "DenyPolicy"
+      }
+    },
+    {
+      "do": "tx",
+      "label": "One-time allow, first",
+      "tx": {
+        "to": "Erin",
+        "value": "1"
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "do": "tx",
+      "label": "One-time allow, second",
+      "tx": {
+        "to": "Erin",
+        "value": "1"
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "OneTimeAllowPolicy",
+        "reason": {
+          "error": "Unauthorized"
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Approve 0 to Mallory (revoke)",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "approve",
+          "args": [
+            "Mallory",
+            "0"
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Approve Dave once",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "approve",
+          "args": [
+            "Dave",
+            "5"
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Approve Dave twice",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "approve",
+          "args": [
+            "Dave",
+            "5"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "ERC20ApprovePolicy",
+        "reason": {
+          "error": "Unauthorized"
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Transfer to Zero",
+      "tx": {
+        "to": "USDC",
+        "call": {
+          "fn": "transfer",
+          "args": [
+            "Zero",
+            "1"
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "ERC20InvalidReceiver"
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Transfer to Dave once in a batch twice",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "USDC",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Dave",
+                  "1"
+                ]
+              }
+            },
+            {
+              "to": "USDC",
+              "call": {
+                "fn": "transfer",
+                "args": [
+                  "Dave",
+                  "2"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "MultiSendPolicy",
+        "reason": {
+          "error": "PolicyReverted",
+          "policy": "ERC20TransferPolicy",
+          "reason": {
+            "error": "Unauthorized"
+          }
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Safenet twice in a batch",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "Dave",
+              "value": "0.1",
+              "context": {
+                "type": "attestation",
+                "key": "trusted",
+                "valid": true
+              }
+            },
+            {
+              "to": "Dave",
+              "value": "0.2",
+              "context": {
+                "type": "attestation",
+                "key": "trusted",
+                "valid": true
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "MultiSendPolicy",
+        "reason": {
+          "error": "PolicyReverted",
+          "policy": "SafenetPolicy",
+          "reason": {
+            "error": "AttestationAlreadySpent"
+          }
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Safenet once in a batch",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "Erin",
+              "value": "0",
+              "data": "0x"
+            },
+            {
+              "to": "Dave",
+              "value": "0.2",
+              "context": {
+                "type": "attestation",
+                "key": "trusted",
+                "valid": true
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "MultiSendPolicy",
+        "reason": {
+          "error": "PolicyReverted",
+          "policy": "OneTimeAllowPolicy",
+          "reason": {
+            "error": "Unauthorized"
+          }
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Safenet once in a batch (alone)",
+      "tx": {
+        "to": "MultiSend",
+        "operation": "DELEGATECALL",
+        "call": {
+          "fn": "multiSend",
+          "batch": [
+            {
+              "to": "Dave",
+              "value": "0.2",
+              "context": {
+                "type": "attestation",
+                "key": "trusted",
+                "valid": true
+              }
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "expectState": {
+        "balances": {
+          "Dave": {
+            "ETH": "0.2"
+          }
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Cosigned ETH to Carol",
+      "tx": {
+        "to": "Carol",
+        "value": "0.1",
+        "context": {
+          "type": "cosignature",
+          "signer": "CoSigner"
+        }
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Same transfer, owner-signature context by the co-signer",
+      "tx": {
+        "to": "Carol",
+        "value": "0.1",
+        "context": {
+          "type": "ownerSignatures",
+          "signers": [
+            "CoSigner"
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "A 65-byte ownerSignatures blob signed by the co-signer is byte-for-byte a valid co-signature over this tx hash at this nonce, so CoSignerPolicy accepts it. A wrong context type only fails when its bytes do not verify."
+    },
+    {
+      "do": "tx",
+      "label": "Cosigner on the module path",
+      "tx": {
+        "path": "module",
+        "module": "AllowanceModule",
+        "to": "Carol",
+        "value": "0.1",
+        "context": {
+          "type": "cosignature",
+          "signer": "CoSigner"
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "CoSignerPolicy",
+        "reason": {
+          "error": "ModulePathUnsupported"
+        }
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Fewer signers than threshold with a context",
+      "tx": {
+        "to": "Carol",
+        "value": "0.1",
+        "signers": [
+          "Alice"
+        ],
+        "context": {
+          "type": "cosignature",
+          "signer": "CoSigner"
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "safe"
+      },
+      "note": "On chain this is GS026, not GS020: the appended context makes the signatures blob long enough, so the Safe reads context bytes as the second signature."
+    },
+    {
+      "do": "tx",
+      "label": "Duplicate signer",
+      "tx": {
+        "to": "Carol",
+        "value": "0.1",
+        "signers": [
+          "Alice",
+          "Alice"
+        ],
+        "context": {
+          "type": "cosignature",
+          "signer": "CoSigner"
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "safe"
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Non-owner signer",
+      "tx": {
+        "to": "Carol",
+        "value": "0.1",
+        "signers": [
+          "Alice",
+          "Mallory"
+        ]
+      },
+      "expect": {
+        "ok": false,
+        "by": "safe"
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Delegatecall fallback Allow",
+      "tx": {
+        "to": "MysteryContract",
+        "operation": "DELEGATECALL",
+        "data": "0x"
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Request root",
+      "tx": {
+        "to": "PolicyGuard",
+        "call": {
+          "fn": "requestConfiguration",
+          "configurations": []
+        }
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Request root again",
+      "tx": {
+        "to": "PolicyGuard",
+        "call": {
+          "fn": "requestConfiguration",
+          "configurations": []
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "RootAlreadyConfigured"
+      }
+    },
+    {
+      "do": "wait",
+      "label": "Wait past delay plus expiry",
+      "seconds": 608400
+    },
+    {
+      "do": "tx",
+      "label": "Apply expired",
+      "tx": {
+        "to": "PolicyGuard",
+        "call": {
+          "fn": "applyConfiguration",
+          "configurations": []
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "RootConfigurationExpired"
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Invalidate expired",
+      "tx": {
+        "to": "PolicyGuard",
+        "call": {
+          "fn": "invalidateRoot",
+          "configurations": []
+        }
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Invalidate missing",
+      "tx": {
+        "to": "PolicyGuard",
+        "call": {
+          "fn": "invalidateRoot",
+          "configurations": []
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "RootNotConfigured"
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Request with value",
+      "tx": {
+        "to": "PolicyGuard",
+        "value": "1",
+        "call": {
+          "fn": "requestConfiguration",
+          "configurations": []
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "GuardTargetDenied"
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Request root exact boundary",
+      "tx": {
+        "to": "PolicyGuard",
+        "call": {
+          "fn": "requestConfiguration",
+          "configurations": [
+            {
+              "fallback": "CALL",
+              "policy": "AllowPolicy"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "do": "wait",
+      "label": "Wait 3599 seconds",
+      "seconds": 3599
+    },
+    {
+      "do": "tx",
+      "label": "Apply at delay-1",
+      "tx": {
+        "to": "PolicyGuard",
+        "call": {
+          "fn": "applyConfiguration",
+          "configurations": [
+            {
+              "fallback": "CALL",
+              "policy": "AllowPolicy"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": false,
+        "by": "execution",
+        "error": "RootConfigurationPending"
+      }
+    },
+    {
+      "do": "wait",
+      "label": "Wait one more second",
+      "seconds": 1
+    },
+    {
+      "do": "tx",
+      "label": "Apply at delay",
+      "tx": {
+        "to": "PolicyGuard",
+        "call": {
+          "fn": "applyConfiguration",
+          "configurations": [
+            {
+              "fallback": "CALL",
+              "policy": "AllowPolicy"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      }
+    },
+    {
+      "do": "tx",
+      "label": "Module transfer to a Safenet-checked recipient",
+      "tx": {
+        "path": "module",
+        "module": "AllowanceModule",
+        "to": "Dave",
+        "value": "0.1"
+      },
+      "expect": {
+        "ok": false,
+        "by": "guard",
+        "error": "PolicyReverted",
+        "policy": "SafenetPolicy",
+        "reason": {
+          "error": "ModulePathUnsupported"
+        }
+      }
+    }
+  ]
+}

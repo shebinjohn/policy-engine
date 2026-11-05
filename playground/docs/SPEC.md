@@ -68,8 +68,11 @@ Safe"), and the conformance harness does the same steps on chain:
 4. If `rules` is non-empty, run `configureImmediately(rules)` as a Safe self-transaction through
    the guard contract (no guard installed yet, so unchecked). Each rule goes through the policy's
    `configure`; a failure throws `SetupError` (for example `PolicyConfigurationFailed`).
-5. Install guards per `guards` (default both): `setGuard(PolicyGuard)` then
-   `setModuleGuard(PolicyGuard)`.
+5. Install guards per `guards` (default both): `setModuleGuard(PolicyGuard)` **first**, then
+   `setGuard(PolicyGuard)`. The order matters on chain: once the transaction guard is installed,
+   the following `setModuleGuard` is an ordinary checked call and, with no rule for it, fails with
+   `AccessDenied(null)` (verified by conformance). The README recommends installing both in one
+   MultiSend; content that teaches installation must account for this.
 
 Setup transactions do not count: after setup the world's `nonce` is reset to 0 and `history` is
 empty, so content can reason from a clean slate. (The harness reads its real nonce after setup and
@@ -113,7 +116,8 @@ Order follows `Safe.execTransaction` (1.5.0) and `SafePolicyGuard.checkTransacti
 1. **Signatures** (Safe). Signers are sorted by address; the Safe needs `threshold` of them.
    Fewer than `threshold` signers → `{by:'safe', error:'GS020'}`. A non-owner among the first
    `threshold` sorted signers, or a duplicate → `GS026`. Content should only assert `by: 'safe'`
-   for these, because on chain the appended context can change which GS code fires.
+   for these, because on chain the appended context changes which GS code fires (with too few
+   signers plus a context, conformance observed `GS026`, not `GS020`).
 2. **Nonce** increments (staged). Policies compute hashes with `nonce - 1`, i.e. the nonce the
    owners signed.
 3. **No transaction guard installed** → trace a `warn` ("No guard: the Safe runs this without any
@@ -123,6 +127,9 @@ Order follows `Safe.execTransaction` (1.5.0) and `SafePolicyGuard.checkTransacti
 6. **Execution** (§9). A failed inner call reverts the whole tx with the inner revert data
    (Safe 1.5.0 bubbles it because `safeTxGas == 0 && gasPrice == 0`): `{by:'execution', error: <inner error name>}`.
    Empty revert data → `error: 'Reverted'`.
+   With `safeTxGas != 0` and **no** guard installed (so nothing rejects the non-zero gas), a failed
+   inner call does **not** revert: the Safe emits `ExecutionFailure`, the nonce is still used, and
+   the result is `{ok:false, by:'execution', error:'CallFailed'}` with only the nonce committed.
 7. `checkAfterExecution(success)` always passes here (a failure already reverted).
 8. Commit.
 
@@ -182,7 +189,7 @@ State is keyed by access selector where the contract does so. Check order matter
 | `MultiSendPolicy` | returns false unless selector is `multiSend` and op DELEGATECALL | data selector not `multiSend` → `InvalidMultiSend`; for each packed sub-tx in order: `to == 0` → the Safe; take the next context item positionally (empty once exhausted); run §7 recursively at depth+1. Any sub-check failure propagates (so the outer error is `PolicyReverted(MultiSendPolicy, <sub-tx error>)`) |
 | `CoSignerPolicy` | data `address`; sets `cosigner[access]` | `module != 0` → `ModulePathUnsupported`; `cosigner[access] == 0` → `NoCosignerConfigured`; context must be `cosignature` by that cosigner over this checked tx (`over: 'self'`), else `Unauthorized`; tx hash already spent → `CoSignatureAlreadySpent`; mark spent (staged) |
 | `IncreasedThresholdPolicy` | data `uint256 maxAbsent`; sets `maxAbsent[access]` | `module != 0` → `ModulePathUnsupported`; required = `owners - maxAbsent` (saturating at 0), clamped to `[threshold + 1, owners]`; context must be `ownerSignatures`: sorted, fewer than `required` → reason `GS020`; a non-owner or duplicate among the first `required` → `GS026`; hash already spent → `SignaturesAlreadySpent`; mark spent |
-| `SafenetPolicy` | always ok | `module != 0` → `ModulePathUnsupported`; context not an `attestation` → `MalformedAttestation`; `key: 'untrusted'` → `UntrustedAttestationKey`; `spent[nonce - 1]` → `AttestationAlreadySpent`; `valid: false` → FROST verification revert (reason `InvalidSignature`, see note); mark `spent[nonce - 1]` |
+| `SafenetPolicy` | always ok | `module != 0` → `ModulePathUnsupported`; context not an `attestation` → `MalformedAttestation`; `key: 'untrusted'` → `UntrustedAttestationKey`; `spent[nonce - 1]` → `AttestationAlreadySpent`; `valid: false` → reason `InvalidMulMulAddWitness` (raised by `Secp256k1.mulmuladd` inside `FROST.verify`; verified by conformance); mark `spent[nonce - 1]` |
 
 Notes:
 
@@ -196,9 +203,9 @@ Notes:
   `CoSignerPolicy`), `over: 'batch'` and `'self'` both mean the outer hash and pass.
 - A context of the wrong `type` for a policy is treated as an invalid signature (`Unauthorized`
   for CoSigner, `GS020`/`GS026` for IncreasedThreshold by the counting rule, `MalformedAttestation`
-  for Safenet).
-- FROST `verify` reverting with a bad signature: confirm the exact error name from
-  `contracts/libraries/FROST.sol` when implementing (the conformance harness is the judge).
+  for Safenet), judged by the **bytes** it would produce. One exception follows from that: an
+  `ownerSignatures` context with exactly one signer who is the configured co-signer is byte-for-byte
+  a valid co-signature, so `CoSignerPolicy` accepts it (verified by conformance).
 
 ## 9. Execution effects
 
@@ -214,13 +221,16 @@ effect; anything else follows the "no code" rule.
 - **WETH**: WETH9. `deposit()` and the fallback (any other calldata, or empty) mint `value` WETH to
   the Safe; `withdraw(amount)` burns and sends ETH (insufficient → `Reverted`); `transfer`,
   `approve`, `transferFrom` as WETH9 (insufficient → `Reverted`).
-- **Safe self-call** (`to == Safe`, CALL): `setGuard(g)` — `g` must be `Zero` or `PolicyGuard`,
-  else `GS300`; `setModuleGuard(g)` likewise, else `GS301`; `enableModule(m)` (`GS101` for 0x0 or
+- **Safe self-call** (`to == Safe`, CALL): `setGuard(g)`: `g` must be `Zero` or `PolicyGuard`;
+  any other address (a person, a token, a policy, the Safe itself) → `Reverted`, because Safe 1.5.0
+  first calls `g.supportsInterface` and that call reverts before `GS300` can fire (verified by
+  conformance); `setModuleGuard(g)` likewise (`Reverted`, not `GS301`); `enableModule(m)` (`GS101` for 0x0 or
   sentinel, `GS102` already enabled); `disableModule` (`GS101`, `GS103`); `changeThreshold(t)`
   (`GS201` if `t > owners`, `GS202` if `t == 0`); `addOwnerWithThreshold` (`GS203` invalid,
   `GS204` duplicate, then threshold rules); `removeOwner` (`GS201`/`GS202`, `GS205` not an owner).
-  Any other calldata to the Safe (no fallback handler) or a plain ETH self-transfer succeeds and
-  does nothing.
+  Any other calldata to the Safe (no fallback handler) succeeds and does nothing, and so does a
+  plain ETH self-transfer; but ETH **with** unknown calldata → `Reverted`, because the Safe 1.5.0
+  fallback is not payable.
 - **PolicyGuard** (CALL): `configureImmediately` → `GuardAlreadyEnabled` if either guard slot is
   the PolicyGuard, else confirms each rule (§10); `requestConfiguration(root)` → if
   `roots[root]` exists and is not expired → `RootAlreadyConfigured`; else `roots[root] = now + delay`;
@@ -228,11 +238,11 @@ effect; anything else follows the "no code" rule.
   `applyConfiguration(rules)` → root missing → `RootNotConfigured`; `now < validFrom` →
   `RootConfigurationPending`; `now >= validFrom + expiry` → `RootConfigurationExpired`; else delete
   the root and confirm each rule in order. Unknown selector or ETH → `Reverted`.
-- **MultiSend** (must be `DELEGATECALL`; as a `CALL` it executes the same code but in its own
-  context, so sub-txs run *from MultiSend*, not the Safe: model it as `Reverted` only if the
-  contract reverts; check `MultiSendCallOnly.sol` and pin the behaviour with conformance): runs
-  sub-txs in order from the Safe; a sub-tx `DELEGATECALL` → `Reverted`; `to == 0x0` → the Safe; any
-  sub-tx failure reverts the whole batch with that sub-tx's revert data.
+- **MultiSend** as `DELEGATECALL` (the normal case): runs sub-txs in order from the Safe; a sub-tx
+  `DELEGATECALL` → `Reverted`; `to == 0x0` → the Safe; any sub-tx failure reverts the whole batch
+  with that sub-tx's revert data. As a `CALL` (verified by conformance): the sub-txs run *from the
+  MultiSend contract*, not the Safe; zero-value sub-txs succeed (as calls by MultiSend), and a
+  sub-tx that sends ETH reverts unless that ETH was attached to the outer call.
 - **Delegatecall** to anything other than MultiSend: runs "unknown code with full control of the
   Safe"; it succeeds and changes nothing, with a `warn` effect.
 - **People, modules, `MysteryContract`, `Zero`**: no code; any call succeeds, ETH is received.

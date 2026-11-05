@@ -72,6 +72,8 @@ export interface Base {
   testFrost: any
   keys: Record<string, any> // name -> ethers.Wallet (no ETH; the relayer pays gas)
   book: Record<string, BookEntry> // without Safe and PolicyGuard (they depend on the setup)
+  /** Blocks may share a timestamp, so time moves only on `wait` (as in the engine). */
+  sameTimestamp: boolean
   snapshot: any
 }
 
@@ -186,8 +188,16 @@ export async function deployBase(): Promise<Base> {
     throw new Error('MysteryContract address unexpectedly has code')
   }
 
+  let sameTimestamp = true
+  try {
+    await helpers.time.setNextBlockTimestamp(await helpers.time.latest())
+    await helpers.mine()
+  } catch {
+    sameTimestamp = false
+  }
+
   const snapshot = await helpers.takeSnapshot()
-  return { relayer, chainId, singleton, safeProxyFactory, multiSend, policies, usdc, safeToken, weth, modules, testFrost, keys, book, snapshot }
+  return { relayer, chainId, singleton, safeProxyFactory, multiSend, policies, usdc, safeToken, weth, modules, testFrost, keys, book, sameTimestamp, snapshot }
 }
 
 // ---------------------------------------------------------------------------------------------

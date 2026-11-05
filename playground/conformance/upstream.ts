@@ -68,6 +68,16 @@ const rootRequire = createRequire(path.join(POLICY_ENGINE_ROOT, 'package.json'))
 /** The running Hardhat runtime environment (the same instance `npx hardhat test` created). */
 export const hre: any = rootRequire('hardhat')
 
+// The engine's clock moves only on `wait` steps; transactions in between share one `now`. Hardhat
+// mines every block at least one second after the previous one unless the network allows equal
+// timestamps. The provider is created lazily from this config object, so opting in here (before
+// the first RPC call, for this process only) lets the harness mine each transaction exactly
+// `wait` seconds after the previous one. `deployBase` checks that it took effect and otherwise
+// falls back to one second per transaction (see README "Time").
+if (hre.network?.name === 'hardhat' && hre.config?.networks?.hardhat) {
+  hre.config.networks.hardhat.allowBlocksWithSameTimestamp = true
+}
+
 /** Hardhat's ethers: the full ethers v6 namespace plus `provider`, `getSigners`, `getContractFactory`. */
 export const ethers: typeof import('ethers') & {
   provider: any

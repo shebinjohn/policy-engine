@@ -10,6 +10,7 @@
  *
  * Environment:
  *   CONFORMANCE_ONLY=id1,id2   run only these ids
+ *   CONFORMANCE_EXTRA=dir[:dir] also run the JSON files in these directories (drafts, mutants)
  *   CONFORMANCE_REPORT=path    also write the results as JSON
  *   CONFORMANCE_VERBOSE=1      print every step's on-chain outcome
  *   POLICY_ENGINE_ROOT=path    policy-engine checkout (standalone layout, see README.md)
@@ -27,7 +28,7 @@ const PLAYGROUND = path.resolve(__dirname, '..')
 
 interface Entry {
   kind: 'scenario' | 'challenge'
-  source: 'scenarios' | 'challenges' | 'fixtures'
+  source: 'scenarios' | 'challenges' | 'fixtures' | 'extra'
   file: string
   content: any
 }
@@ -56,6 +57,9 @@ function discover(): Entry[] {
   for (const file of readDir(path.join(PLAYGROUND, 'scenarios'))) load(file, 'scenarios', 'scenario')
   for (const file of readDir(path.join(PLAYGROUND, 'challenges'))) load(file, 'challenges', 'challenge')
   for (const file of readDir(path.join(__dirname, 'fixtures'))) load(file, 'fixtures')
+  for (const dir of (process.env.CONFORMANCE_EXTRA ?? '').split(path.delimiter).filter(Boolean)) {
+    for (const file of readDir(path.resolve(dir))) load(file, 'extra')
+  }
   const only = process.env.CONFORMANCE_ONLY?.split(',').map((s) => s.trim()).filter(Boolean)
   return only ? entries.filter((e) => only.includes(e.content.id) || only.includes(path.basename(e.file, '.json'))) : entries
 }
