@@ -110,7 +110,14 @@ function TermRef({ label, term, plain }: { label: string; term: string; plain: s
       >
         {label}
       </button>
-      <span ref={pop} role="tooltip" id={id} className="term-pop" hidden={!open} style={shift ? { transform: `translateX(${shift}px)` } : undefined}>
+      <span
+        ref={pop}
+        role="tooltip"
+        id={id}
+        className="term-pop"
+        hidden={!open}
+        style={shift ? { transform: `translateX(${shift}px)` } : undefined}
+      >
         <strong>{term}.</strong> {plain}
       </span>
     </span>

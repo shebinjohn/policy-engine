@@ -10,7 +10,15 @@
  *   is replaced by one byte 0x80 + its index. Base32 alphabet: a-z then 2-7.
  * DICT_V1 is frozen: never reorder or remove an entry. A new entry or format means version 2.
  */
-import type { PermissionName, PolicyConfig, RuleSpec, SetupSpec, TableEntry, TxSpec, World } from '../../engine/types.ts'
+import type {
+  PermissionName,
+  PolicyConfig,
+  RuleSpec,
+  SetupSpec,
+  TableEntry,
+  TxSpec,
+  World
+} from '../../engine/types.ts'
 import { decodeConfig, entity, keyOf, moduleNames, ownerNames, ruleSpecFromEntry } from './describe.ts'
 import { formatUnits } from './format.ts'
 
@@ -18,24 +26,126 @@ export const SHARE_VERSION = '1'
 
 const DICT_V1: readonly string[] = [
   // address book
-  'Safe', 'PolicyGuard', 'MultiSend', 'USDC', 'SAFE', 'WETH', 'Alice', 'Bob', 'Carol', 'Dave', 'Erin', 'Mallory',
-  'CoSigner', 'AllowanceModule', 'RecoveryModule', 'MysteryContract', 'Zero', 'ETH',
+  'Safe',
+  'PolicyGuard',
+  'MultiSend',
+  'USDC',
+  'SAFE',
+  'WETH',
+  'Alice',
+  'Bob',
+  'Carol',
+  'Dave',
+  'Erin',
+  'Mallory',
+  'CoSigner',
+  'AllowanceModule',
+  'RecoveryModule',
+  'MysteryContract',
+  'Zero',
+  'ETH',
   // policies
-  'AllowPolicy', 'DenyPolicy', 'OneTimeAllowPolicy', 'AllowedModulePolicy', 'NativeTransferPolicy', 'ERC20TransferPolicy',
-  'ERC20ApprovePolicy', 'MultiSendPolicy', 'CoSignerPolicy', 'IncreasedThresholdPolicy', 'SafenetPolicy',
+  'AllowPolicy',
+  'DenyPolicy',
+  'OneTimeAllowPolicy',
+  'AllowedModulePolicy',
+  'NativeTransferPolicy',
+  'ERC20TransferPolicy',
+  'ERC20ApprovePolicy',
+  'MultiSendPolicy',
+  'CoSignerPolicy',
+  'IncreasedThresholdPolicy',
+  'SafenetPolicy',
   // functions and enums
-  'transfer', 'approve', 'transferFrom', 'deposit', 'withdraw', 'setGuard', 'setModuleGuard', 'enableModule', 'disableModule',
-  'changeThreshold', 'addOwnerWithThreshold', 'removeOwner', 'configureImmediately', 'requestConfiguration',
-  'applyConfiguration', 'invalidateRoot', 'multiSend', 'none', 'CALL', 'DELEGATECALL', 'ALWAYS', 'ONCE', 'NONE',
-  'owner', 'module', 'cosignature', 'ownerSignatures', 'attestation', 'batch', 'self', 'trusted', 'untrusted',
+  'transfer',
+  'approve',
+  'transferFrom',
+  'deposit',
+  'withdraw',
+  'setGuard',
+  'setModuleGuard',
+  'enableModule',
+  'disableModule',
+  'changeThreshold',
+  'addOwnerWithThreshold',
+  'removeOwner',
+  'configureImmediately',
+  'requestConfiguration',
+  'applyConfiguration',
+  'invalidateRoot',
+  'multiSend',
+  'none',
+  'CALL',
+  'DELEGATECALL',
+  'ALWAYS',
+  'ONCE',
+  'NONE',
+  'owner',
+  'module',
+  'cosignature',
+  'ownerSignatures',
+  'attestation',
+  'batch',
+  'self',
+  'trusted',
+  'untrusted',
   // keys
-  's', 't', 'to', 'value', 'operation', 'call', 'fn', 'args', 'configurations', 'data', 'context', 'type', 'signer',
-  'over', 'signers', 'key', 'valid', 'items', 'path', 'safeTxGas', 'gasPrice', 'label', 'owners', 'threshold', 'modules',
-  'balances', 'allowances', 'rules', 'guards', 'transaction', 'delay', 'expiry', 'target', 'selector', 'policy', 'config',
-  'fallback', 'recipients', 'spenders', 'account', 'permission', 'cosigner', 'maxAbsent', 'allowed', 'granted', 'token',
-  'spender', 'amount',
+  's',
+  't',
+  'to',
+  'value',
+  'operation',
+  'call',
+  'fn',
+  'args',
+  'configurations',
+  'data',
+  'context',
+  'type',
+  'signer',
+  'over',
+  'signers',
+  'key',
+  'valid',
+  'items',
+  'path',
+  'safeTxGas',
+  'gasPrice',
+  'label',
+  'owners',
+  'threshold',
+  'modules',
+  'balances',
+  'allowances',
+  'rules',
+  'guards',
+  'transaction',
+  'delay',
+  'expiry',
+  'target',
+  'selector',
+  'policy',
+  'config',
+  'fallback',
+  'recipients',
+  'spenders',
+  'account',
+  'permission',
+  'cosigner',
+  'maxAbsent',
+  'allowed',
+  'granted',
+  'token',
+  'spender',
+  'amount',
   // common amounts
-  '0', '1', '2', '3', '10', '100', '1000'
+  '0',
+  '1',
+  '2',
+  '3',
+  '10',
+  '100',
+  '1000'
 ]
 if (DICT_V1.length > 127) throw new Error('share dictionary overflow')
 const DICT_INDEX = new Map(DICT_V1.map((w, i) => [w, i]))
@@ -109,7 +219,10 @@ function prune<T>(v: T): T {
 }
 
 export function encodeShare(run: SharedRun): string {
-  const json = JSON.stringify(prune({ s: run.setup, t: run.tx })).replace(/[\u0080-￿]/g, (c) => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'))
+  const json = JSON.stringify(prune({ s: run.setup, t: run.tx })).replace(
+    /[\u0080-￿]/g,
+    (c) => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0')
+  )
   const bytes: number[] = []
   let i = 0
   while (i < json.length) {
@@ -142,7 +255,8 @@ export function decodeShare(input: string): SharedRun {
   if (!code) throw new ShareError('Paste a setup code first.')
   if (code[0] !== SHARE_VERSION) throw new ShareError('This setup code comes from another version of the playground.')
   const body = code.slice(1, -2)
-  if (code.length < 4 || check(body) !== code.slice(-2)) throw new ShareError('This setup code is incomplete or mistyped. Copy it again in full.')
+  if (code.length < 4 || check(body) !== code.slice(-2))
+    throw new ShareError('This setup code is incomplete or mistyped. Copy it again in full.')
   const bytes = unbase32(body)
   let json = ''
   for (const b of bytes) {
@@ -158,7 +272,8 @@ export function decodeShare(input: string): SharedRun {
   } catch {
     throw new ShareError('This setup code could not be read.')
   }
-  if (!parsed.s || !parsed.t || typeof parsed.t.to !== 'string') throw new ShareError('This setup code could not be read.')
+  if (!parsed.s || !parsed.t || typeof parsed.t.to !== 'string')
+    throw new ShareError('This setup code could not be read.')
   return { setup: parsed.s, tx: parsed.t }
 }
 
@@ -176,7 +291,10 @@ function liveConfig(world: World, entry: TableEntry): PolicyConfig | null {
     const table = (st?.recipients ?? st?.spenders) as Record<string, Record<string, number>> | undefined
     if (!table) return null
     const tokenKey = Object.keys(table).find((k) => eq(k, entry.target))
-    const rows = Object.entries(tokenKey ? table[tokenKey] : {}).map(([acct, p]) => ({ account: keyOf(world, acct), permission: PERMS[p] ?? 'NONE' }))
+    const rows = Object.entries(tokenKey ? table[tokenKey] : {}).map(([acct, p]) => ({
+      account: keyOf(world, acct),
+      permission: PERMS[p] ?? 'NONE'
+    }))
     return entry.policy === 'ERC20TransferPolicy' ? { recipients: rows } : { spenders: rows }
   }
   if (entry.policy === 'OneTimeAllowPolicy') {
@@ -205,7 +323,12 @@ export function worldToSetup(world: World): SetupSpec {
     for (const [owner, spenders] of Object.entries(owners)) {
       for (const [spender, amount] of Object.entries(spenders)) {
         if (amount === '0') continue
-        allowances.push({ token: keyOf(world, token), owner: keyOf(world, owner), spender: keyOf(world, spender), amount: human(world, token, amount) })
+        allowances.push({
+          token: keyOf(world, token),
+          owner: keyOf(world, owner),
+          spender: keyOf(world, spender),
+          amount: human(world, token, amount)
+        })
       }
     }
   }

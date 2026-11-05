@@ -6,7 +6,17 @@ import type { RuleWords } from '../lib/describe.ts'
 import { formatDuration, formatShortTime, formatTime, plural, shortAddress } from '../lib/format.ts'
 import { Button, Callout, Glyph, Status, Tech, useEngineer } from './ui.tsx'
 
-export function Section({ title, aside, children, id }: { title: ReactNode; aside?: ReactNode; children: ReactNode; id?: string }) {
+export function Section({
+  title,
+  aside,
+  children,
+  id
+}: {
+  title: ReactNode
+  aside?: ReactNode
+  children: ReactNode
+  id?: string
+}) {
   return (
     <section className="panel-section" aria-labelledby={id}>
       <div className="panel-section-head">
@@ -30,7 +40,17 @@ export function guardState(world: World) {
 // Facts
 // ---------------------------------------------------------------------------------------------
 
-export function OwnersSection({ world, idPrefix = '', nonceChanged = false, flashKey = 0 }: { world: World; idPrefix?: string; nonceChanged?: boolean; flashKey?: number }) {
+export function OwnersSection({
+  world,
+  idPrefix = '',
+  nonceChanged = false,
+  flashKey = 0
+}: {
+  world: World
+  idPrefix?: string
+  nonceChanged?: boolean
+  flashKey?: number
+}) {
   const owners = ownerNames(world)
   return (
     <Section
@@ -60,7 +80,15 @@ export function OwnersSection({ world, idPrefix = '', nonceChanged = false, flas
   )
 }
 
-export function GuardsSection({ world, idPrefix = '', actions }: { world: World; idPrefix?: string; actions?: ReactNode }) {
+export function GuardsSection({
+  world,
+  idPrefix = '',
+  actions
+}: {
+  world: World
+  idPrefix?: string
+  actions?: ReactNode
+}) {
   const g = guardState(world)
   const row = (on: boolean, name: string, what: string) => (
     <li className="guard-row">
@@ -121,7 +149,17 @@ export function ModulesSection({ world, idPrefix = '' }: { world: World; idPrefi
   )
 }
 
-export function BalancesSection({ world, idPrefix = '', changed, flashKey = 0 }: { world: World; idPrefix?: string; changed?: Set<string>; flashKey?: number }) {
+export function BalancesSection({
+  world,
+  idPrefix = '',
+  changed,
+  flashKey = 0
+}: {
+  world: World
+  idPrefix?: string
+  changed?: Set<string>
+  flashKey?: number
+}) {
   const rows = balanceRows(world, world.safe.address)
   const others = world.book
     .filter((e) => e.kind === 'person' || e.kind === 'module' || e.kind === 'contract' || e.kind === 'service')
@@ -135,7 +173,10 @@ export function BalancesSection({ world, idPrefix = '', changed, flashKey = 0 }:
         <table className="balances">
           <tbody>
             {rows.map((r) => (
-              <tr key={changed?.has(r.asset) ? `${r.asset}-${flashKey}` : r.asset} className={changed?.has(r.asset) ? 'flash' : undefined}>
+              <tr
+                key={changed?.has(r.asset) ? `${r.asset}-${flashKey}` : r.asset}
+                className={changed?.has(r.asset) ? 'flash' : undefined}
+              >
                 <th scope="row">{r.symbol}</th>
                 <td className="tnum">{r.amount}</td>
               </tr>
@@ -175,6 +216,7 @@ export function RuleRow({
   note,
   marker,
   decided = false,
+  flash = false,
   domId
 }: {
   w: RuleWords
@@ -183,10 +225,16 @@ export function RuleRow({
   note?: string
   marker?: ReactNode
   decided?: boolean
+  /** Play the short highlight (after a run, not on first load). */
+  flash?: boolean
   domId?: string
 }) {
   return (
-    <li id={domId} tabIndex={domId ? -1 : undefined} className={`rule${w.isFallback ? ' is-fallback' : ''}${w.removes ? ' is-removal' : ''}${decided ? ' is-decided flash' : ''}`}>
+    <li
+      id={domId}
+      tabIndex={domId ? -1 : undefined}
+      className={`rule${w.isFallback ? ' is-fallback' : ''}${w.removes ? ' is-removal' : ''}${decided ? ' is-decided' : ''}${decided && flash ? ' flash' : ''}`}
+    >
       {decided ? (
         <span className="decided-badge">
           <Glyph kind="arrow-right" size={12} />
@@ -295,6 +343,7 @@ export function RuleTable({
               access={e.access}
               actions={actions(e)}
               decided={isDecided(e)}
+              flash={flashKey > 0}
               domId={ruleDomId(e.access)}
             />
           ))}
@@ -314,6 +363,7 @@ export function RuleTable({
               access={e.access}
               actions={actions(e)}
               decided={isDecided(e)}
+              flash={flashKey > 0}
               domId={ruleDomId(e.access)}
             />
           ))}
@@ -378,7 +428,11 @@ export function PendingChanges({
           phase === 'waiting' ? (
             <Status status="warn" label={`Waiting period: ${formatDuration(r.validFrom - world.now)} left`} compact />
           ) : phase === 'ready' ? (
-            <Status status="pass" label={`Ready. Expires in ${formatDuration(r.validFrom + world.expiry - world.now)}`} compact />
+            <Status
+              status="pass"
+              label={`Ready. Expires in ${formatDuration(r.validFrom + world.expiry - world.now)}`}
+              compact
+            />
           ) : (
             <Status status="fail" label="Expired. Propose it again." compact />
           )
@@ -426,7 +480,8 @@ export function Clock({ world, onAdvance }: { world: World; onAdvance?: (s: numb
         {formatTime(world.now)}
       </p>
       <p className="muted small">
-        Waiting period {formatDuration(world.delay)} · change sets expire {formatDuration(world.expiry)} after they become ready
+        Waiting period {formatDuration(world.delay)} · change sets expire {formatDuration(world.expiry)} after they
+        become ready
       </p>
       {onAdvance ? (
         <div className="button-row" role="group" aria-label="Advance time">
@@ -492,4 +547,3 @@ export function SafeHeader({ world, badge }: { world: World; badge?: ReactNode }
     </div>
   )
 }
-

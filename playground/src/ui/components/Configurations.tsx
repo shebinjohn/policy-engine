@@ -72,13 +72,24 @@ export function ConfigurationsEditor({
             Add rule
           </Button>
           {changeSet.length > 0 ? (
-            <Button id={`${id}-copy-draft`} size="sm" variant="ghost" onClick={() => onChange(structuredClone(changeSet))}>
+            <Button
+              id={`${id}-copy-draft`}
+              size="sm"
+              variant="ghost"
+              onClick={() => onChange(structuredClone(changeSet))}
+            >
               Use my change set ({plural(changeSet.length, 'rule')})
             </Button>
           ) : null}
           {usesRoot
             ? roots.map((r, i) => (
-                <Button key={i} id={`${id}-copy-root-${i}`} size="sm" variant="ghost" onClick={() => onChange(structuredClone(r.configurations))}>
+                <Button
+                  key={i}
+                  id={`${id}-copy-root-${i}`}
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => onChange(structuredClone(r.configurations))}
+                >
                   Use proposed change set {i + 1}
                 </Button>
               ))

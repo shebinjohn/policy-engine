@@ -29,7 +29,7 @@ export const CHALLENGE_TEACHER: Record<string, string> = {
   'co-signed-invoice': 'catch-all-cosigner',
   'no-wrapped-ether': 'weth-fallback',
   'night-shift': 'co-sign-each-step',
-  'retiring-the-guard': 'guard-removal'
+  'retiring-the-guard': 'module-paths'
 }
 
 /** Policy -> the scenario that shows it at work ("See it in action" on Learn). */

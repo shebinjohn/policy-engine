@@ -36,7 +36,9 @@ export function errorInfo(name: string | undefined, policy?: PolicyName | null):
   if (!name) return undefined
   if (policy) {
     const specific =
-      errorsByKey.get(`${policy}.${name}`) ?? errorsByKey.get(`${policy}:${name}`) ?? errorsByKey.get(`${policy}/${name}`)
+      errorsByKey.get(`${policy}.${name}`) ??
+      errorsByKey.get(`${policy}:${name}`) ??
+      errorsByKey.get(`${policy}/${name}`)
     if (specific) return specific
   }
   return errorsByKey.get(name)
@@ -102,7 +104,11 @@ export function shortReason(err: SimError | undefined): string {
 }
 
 /** Which authorization paths a policy can pass: words and tone for a pill. */
-export function pathSupport(policy: PolicyName | string | null | undefined): { label: string; restricted: boolean; paths: 'both' | 'owner-only' | 'module-only' } {
+export function pathSupport(policy: PolicyName | string | null | undefined): {
+  label: string
+  restricted: boolean
+  paths: 'both' | 'owner-only' | 'module-only'
+} {
   const paths = (policyInfo(policy)?.paths ?? 'both') as 'both' | 'owner-only' | 'module-only'
   if (paths === 'owner-only') return { label: 'Owner transactions only', restricted: true, paths }
   if (paths === 'module-only') return { label: 'Module transactions only', restricted: true, paths }

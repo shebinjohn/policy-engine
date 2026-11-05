@@ -36,7 +36,14 @@ const isFallbackKey = (a: string | undefined) => !!a && FALLBACK_KEYS.has(a.toLo
 
 const WETH_FNS = new Set(['deposit', 'withdraw', 'transfer', 'approve', 'transferFrom'])
 /** Batch steps that change what later checks would read. */
-const STATE_FNS = new Set(['changeThreshold', 'addOwnerWithThreshold', 'removeOwner', 'applyConfiguration', 'enableModule', 'disableModule'])
+const STATE_FNS = new Set([
+  'changeThreshold',
+  'addOwnerWithThreshold',
+  'removeOwner',
+  'applyConfiguration',
+  'enableModule',
+  'disableModule'
+])
 
 function configurationsOf(tx: TxSpec): RuleSpec[] {
   const out: RuleSpec[] = [...(tx.call?.configurations ?? [])]
@@ -65,7 +72,10 @@ function dataOf(world: World, result: SimResult, tx: TxSpec, ev: TraceEvent): st
   const c = callOf(tx, ev)
   if (!c) return '0x'
   try {
-    return engine.encode(world, { to: c.to, value: c.value, operation: c.operation, call: c.call, data: c.data }).data || '0x'
+    return (
+      engine.encode(world, { to: c.to, value: c.value, operation: c.operation, call: c.call, data: c.data }).data ||
+      '0x'
+    )
   } catch {
     return '0x'
   }
@@ -165,7 +175,8 @@ export function detectSharpEdge({
       id: 'zero-key',
       stage: zeroKey.depth === 0 ? 'lookup' : 'policy',
       title: 'The zero address shares the catch-all key',
-      text: 'You might expect a transfer to the zero address to need a rule of its own. Its key is the catch-all key, so the catch-all rule decided it. Whatever the catch-all allows can burn funds there.'
+      text: 'You might expect a transfer to the zero address to need a rule of its own. Its key is the catch-all key, so the catch-all rule decided it. Whatever the catch-all allows can burn funds there.',
+      scenario: 'deny-beats-catch-all'
     }
   }
 
@@ -186,7 +197,13 @@ export function detectSharpEdge({
 
   if (fallback) {
     // 8. A rule this call used to have was removed, so it fell back to the catch-all.
-    const miss = trace.find((e) => e.id === 'engine.lookup.exact' && e.depth === fallback.depth && e.subTx === fallback.subTx && e.status !== 'pass')
+    const miss = trace.find(
+      (e) =>
+        e.id === 'engine.lookup.exact' &&
+        e.depth === fallback.depth &&
+        e.subTx === fallback.subTx &&
+        e.status !== 'pass'
+    )
     if (miss?.access && seenKeys?.has(miss.access.toLowerCase())) {
       return {
         id: 'removed-rule',

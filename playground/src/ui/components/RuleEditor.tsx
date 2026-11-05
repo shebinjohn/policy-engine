@@ -1,10 +1,39 @@
 /** Edit one rule: where it applies (target, action, call type, or catch-all) and which policy with which settings. */
 import { useMemo, useState } from 'react'
-import type { OperationName, PermissionName, PolicyConfig, PolicyName, RuleSpec, SimError, World } from '../../engine/types.ts'
+import type {
+  OperationName,
+  PermissionName,
+  PolicyConfig,
+  PolicyName,
+  RuleSpec,
+  SimError,
+  World
+} from '../../engine/types.ts'
 import { ALL_POLICIES, errorInfo, pathSupport, policyInfo, policyLabel } from '../lib/content.ts'
 import { engine } from '../sources.ts'
-import { describeConfig, entity, fnByName, fnBySelector, fnsFor, keyOf, moduleNames, ZERO_SELECTOR } from '../lib/describe.ts'
-import { AddressSelect, Button, Callout, Checkbox, Field, Glyph, Pill, Segmented, Select, TextInput, useEngineer } from './ui.tsx'
+import {
+  describeConfig,
+  entity,
+  fnByName,
+  fnBySelector,
+  fnsFor,
+  keyOf,
+  moduleNames,
+  ZERO_SELECTOR
+} from '../lib/describe.ts'
+import {
+  AddressSelect,
+  Button,
+  Callout,
+  Checkbox,
+  Field,
+  Glyph,
+  Pill,
+  Segmented,
+  Select,
+  TextInput,
+  useEngineer
+} from './ui.tsx'
 import type { Option } from './ui.tsx'
 
 type Row = { account: string; permission: PermissionName }
@@ -38,7 +67,14 @@ export function defaultConfig(world: World, policy: PolicyName): Config {
 }
 
 function hasConfig(policy: PolicyName): boolean {
-  return ['ERC20TransferPolicy', 'ERC20ApprovePolicy', 'CoSignerPolicy', 'IncreasedThresholdPolicy', 'AllowedModulePolicy', 'OneTimeAllowPolicy'].includes(policy)
+  return [
+    'ERC20TransferPolicy',
+    'ERC20ApprovePolicy',
+    'CoSignerPolicy',
+    'IncreasedThresholdPolicy',
+    'AllowedModulePolicy',
+    'OneTimeAllowPolicy'
+  ].includes(policy)
 }
 
 const PERM_OPTIONS: { value: PermissionName; label: string }[] = [
@@ -47,16 +83,46 @@ const PERM_OPTIONS: { value: PermissionName; label: string }[] = [
   { value: 'NONE', label: 'Not allowed' }
 ]
 
-function AccountList({ id, world, rows, onChange, noun }: { id: string; world: World; rows: Row[]; onChange: (r: Row[]) => void; noun: string }) {
+function AccountList({
+  id,
+  world,
+  rows,
+  onChange,
+  noun
+}: {
+  id: string
+  world: World
+  rows: Row[]
+  onChange: (r: Row[]) => void
+  noun: string
+}) {
   const set = (i: number, patch: Partial<Row>) => onChange(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)))
   return (
     <div className="account-list">
       {rows.length === 0 ? <p className="muted small">Nobody listed yet.</p> : null}
       {rows.map((r, i) => (
         <div className="account-row" key={i}>
-          <AddressSelect id={`${id}-acct-${i}`} ariaLabel={`${noun} ${i + 1}`} world={world} value={r.account} onChange={(v) => set(i, { account: v })} />
-          <Segmented id={`${id}-perm-${i}`} label={`Permission for ${noun} ${i + 1}`} size="sm" value={r.permission} options={PERM_OPTIONS} onChange={(v) => set(i, { permission: v })} />
-          <Button size="sm" variant="ghost" onClick={() => onChange(rows.filter((_, j) => j !== i))} title={`Remove ${noun} ${i + 1}`}>
+          <AddressSelect
+            id={`${id}-acct-${i}`}
+            ariaLabel={`${noun} ${i + 1}`}
+            world={world}
+            value={r.account}
+            onChange={(v) => set(i, { account: v })}
+          />
+          <Segmented
+            id={`${id}-perm-${i}`}
+            label={`Permission for ${noun} ${i + 1}`}
+            size="sm"
+            value={r.permission}
+            options={PERM_OPTIONS}
+            onChange={(v) => set(i, { permission: v })}
+          />
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => onChange(rows.filter((_, j) => j !== i))}
+            title={`Remove ${noun} ${i + 1}`}
+          >
             <Glyph kind="close" size={14} />
             <span className="sr-only">Remove</span>
           </Button>
@@ -70,32 +136,76 @@ function AccountList({ id, world, rows, onChange, noun }: { id: string; world: W
   )
 }
 
-export function PolicyConfigForm({ id, world, policy, config, onChange }: { id: string; world: World; policy: PolicyName; config: Config; onChange: (c: Config) => void }) {
+export function PolicyConfigForm({
+  id,
+  world,
+  policy,
+  config,
+  onChange
+}: {
+  id: string
+  world: World
+  policy: PolicyName
+  config: Config
+  onChange: (c: Config) => void
+}) {
   switch (policy) {
     case 'ERC20TransferPolicy':
       return (
         <Field label="Who may receive tokens">
-          <AccountList id={`${id}-rcpt`} world={world} noun="recipient" rows={config.recipients ?? []} onChange={(r) => onChange({ ...config, recipients: r })} />
+          <AccountList
+            id={`${id}-rcpt`}
+            world={world}
+            noun="recipient"
+            rows={config.recipients ?? []}
+            onChange={(r) => onChange({ ...config, recipients: r })}
+          />
         </Field>
       )
     case 'ERC20ApprovePolicy':
       return (
         <Field label="Who may be approved to spend">
-          <AccountList id={`${id}-spnd`} world={world} noun="spender" rows={config.spenders ?? []} onChange={(r) => onChange({ ...config, spenders: r })} />
+          <AccountList
+            id={`${id}-spnd`}
+            world={world}
+            noun="spender"
+            rows={config.spenders ?? []}
+            onChange={(r) => onChange({ ...config, spenders: r })}
+          />
         </Field>
       )
     case 'CoSignerPolicy':
       return (
-        <Field id={`${id}-cosigner`} label="Co-signer" hint="Their signature over this exact transaction is required. Each signature works once.">
-          <AddressSelect id={`${id}-cosigner`} world={world} value={config.cosigner ?? 'CoSigner'} onChange={(v) => onChange({ ...config, cosigner: v })} />
+        <Field
+          id={`${id}-cosigner`}
+          label="Co-signer"
+          hint="Their signature over this exact transaction is required. Each signature works once."
+        >
+          <AddressSelect
+            id={`${id}-cosigner`}
+            world={world}
+            value={config.cosigner ?? 'CoSigner'}
+            onChange={(v) => onChange({ ...config, cosigner: v })}
+          />
         </Field>
       )
     case 'IncreasedThresholdPolicy': {
       const owners = world.safe.owners.length
       const maxAbsent = Number(config.maxAbsent ?? 0)
       return (
-        <Field id={`${id}-absent`} label="Owners who may be absent" hint={describeConfig(world, policy, { maxAbsent }) + '. Never fewer than the threshold plus one.'}>
-          <TextInput id={`${id}-absent`} inputMode="numeric" value={String(config.maxAbsent ?? 0)} onChange={(v) => onChange({ ...config, maxAbsent: Math.max(0, Math.min(owners, Number(v.replace(/\D/g, '')) || 0)) })} />
+        <Field
+          id={`${id}-absent`}
+          label="Owners who may be absent"
+          hint={describeConfig(world, policy, { maxAbsent }) + '. Never fewer than the threshold plus one.'}
+        >
+          <TextInput
+            id={`${id}-absent`}
+            inputMode="numeric"
+            value={String(config.maxAbsent ?? 0)}
+            onChange={(v) =>
+              onChange({ ...config, maxAbsent: Math.max(0, Math.min(owners, Number(v.replace(/\D/g, '')) || 0)) })
+            }
+          />
         </Field>
       )
     }
@@ -103,13 +213,34 @@ export function PolicyConfigForm({ id, world, policy, config, onChange }: { id: 
       return (
         <div className="stack-sm">
           <Field id={`${id}-module`} label="Module">
-            <AddressSelect id={`${id}-module`} world={world} kinds={['module']} allowCustom={false} value={config.module ?? 'AllowanceModule'} onChange={(v) => onChange({ ...config, module: v })} />
+            <AddressSelect
+              id={`${id}-module`}
+              world={world}
+              kinds={['module']}
+              allowCustom={false}
+              value={config.module ?? 'AllowanceModule'}
+              onChange={(v) => onChange({ ...config, module: v })}
+            />
           </Field>
-          <Checkbox id={`${id}-module-allowed`} checked={config.allowed !== false} onChange={(v) => onChange({ ...config, allowed: v })} label="Allowed" hint="Owner transactions are always refused by this policy." />
+          <Checkbox
+            id={`${id}-module-allowed`}
+            checked={config.allowed !== false}
+            onChange={(v) => onChange({ ...config, allowed: v })}
+            label="Allowed"
+            hint="Owner transactions are always refused by this policy."
+          />
         </div>
       )
     case 'OneTimeAllowPolicy':
-      return <Checkbox id={`${id}-granted`} checked={config.granted !== false} onChange={(v) => onChange({ ...config, granted: v })} label="Grant one use" hint="The first matching transaction spends it." />
+      return (
+        <Checkbox
+          id={`${id}-granted`}
+          checked={config.granted !== false}
+          onChange={(v) => onChange({ ...config, granted: v })}
+          label="Grant one use"
+          hint="The first matching transaction spends it."
+        />
+      )
     default:
       return <p className="muted small">This policy has no settings.</p>
   }
@@ -144,7 +275,7 @@ export function RuleEditor({
       ? 'none'
       : fnByName(initSelector)
         ? initSelector
-        : fnBySelector(initSelector)?.name ?? CUSTOM
+        : (fnBySelector(initSelector)?.name ?? CUSTOM)
   const [scope, setScope] = useState<'exact' | 'fallback'>(initial?.fallback ? 'fallback' : 'exact')
   const [target, setTarget] = useState(initial?.target ? keyOf(world, initial.target) : 'USDC')
   const [action, setAction] = useState<string>(initAction)
@@ -155,7 +286,11 @@ export function RuleEditor({
   const [config, setConfig] = useState<Config>((initial?.config as Config) ?? defaultConfig(world, initPolicy))
 
   const kind = entity(world, target).kind
-  const fns = fnsFor(kind).filter((f) => !['configureImmediately', 'applyConfiguration', 'requestConfiguration', 'invalidateRoot'].includes(f.name) || engineer)
+  const fns = fnsFor(kind).filter(
+    (f) =>
+      !['configureImmediately', 'applyConfiguration', 'requestConfiguration', 'invalidateRoot'].includes(f.name) ||
+      engineer
+  )
   const actionOptions: Option[] = [
     ...fns.map((f) => ({ value: f.name, label: engineer ? `${f.label} · ${f.signature}` : f.label })),
     { value: 'none', label: 'Send ETH only (no data)' },
@@ -234,16 +369,27 @@ export function RuleEditor({
             <AddressSelect id={`${idPrefix}-target`} world={world} value={target} onChange={changeTarget} />
           </Field>
           <Field id={`${idPrefix}-action`} label="Action">
-            <Select id={`${idPrefix}-action`} value={actionValid ? action : 'none'} onChange={changeAction} options={actionOptions} />
+            <Select
+              id={`${idPrefix}-action`}
+              value={actionValid ? action : 'none'}
+              onChange={changeAction}
+              options={actionOptions}
+            />
           </Field>
           {action === CUSTOM ? (
-            <Field id={`${idPrefix}-selector`} label="Function selector" hint={customOk ? undefined : 'Four bytes in hex, like 0xa9059cbb.'}>
+            <Field
+              id={`${idPrefix}-selector`}
+              label="Function selector"
+              hint={customOk ? undefined : 'Four bytes in hex, like 0xa9059cbb.'}
+            >
               <TextInput id={`${idPrefix}-selector`} mono value={custom} onChange={setCustom} />
             </Field>
           ) : null}
         </>
       ) : (
-        <p className="muted small">A catch-all rule checks every call that has no rule of its own, for one call type.</p>
+        <p className="muted small">
+          A catch-all rule checks every call that has no rule of its own, for one call type.
+        </p>
       )}
       <Field label="Call type">
         <Segmented
@@ -258,7 +404,12 @@ export function RuleEditor({
         />
       </Field>
       <Field id={`${idPrefix}-policy`} label="Policy" hint={info?.oneLiner}>
-        <Select id={`${idPrefix}-policy`} value={policy} onChange={(v) => changePolicy(v as PolicyName)} options={policies.map((p) => ({ value: p, label: engineer ? `${policyLabel(p)} · ${p}` : policyLabel(p) }))} />
+        <Select
+          id={`${idPrefix}-policy`}
+          value={policy}
+          onChange={(v) => changePolicy(v as PolicyName)}
+          options={policies.map((p) => ({ value: p, label: engineer ? `${policyLabel(p)} · ${p}` : policyLabel(p) }))}
+        />
       </Field>
       <div className="chips">
         <Pill tone={pathSupport(policy).restricted ? 'warning' : 'neutral'}>{pathSupport(policy).label}</Pill>
@@ -268,10 +419,18 @@ export function RuleEditor({
       <PolicyConfigForm id={`${idPrefix}-cfg`} world={world} policy={policy} config={config} onChange={setConfig} />
       {info?.configHelp && hasConfig(policy) ? <p className="muted small">{info.configHelp}</p> : null}
       {setupProblem ? (
-        <Callout tone="warning" title={`The Policy Guard would refuse this rule: ${problemInfo?.title ?? setupProblem.error}`}>
+        <Callout
+          tone="warning"
+          title={`The Policy Guard would refuse this rule: ${problemInfo?.title ?? setupProblem.error}`}
+        >
           {problemIsSpecific ? problemInfo?.plain : setupProblem.message}
           {problemInfo?.fix ? <> {problemInfo.fix}</> : null}
-          {engineer ? <span className="mono small"> ({setupProblem.policy ?? policy}.{setupProblem.error})</span> : null}
+          {engineer ? (
+            <span className="mono small">
+              {' '}
+              ({setupProblem.policy ?? policy}.{setupProblem.error})
+            </span>
+          ) : null}
         </Callout>
       ) : null}
       <div className="button-row">

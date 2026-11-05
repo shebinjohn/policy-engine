@@ -13,6 +13,7 @@ export const LIGHT = {
   node: '#EEEEEE',
   'node-edge': '#636669',
   plate: '#121312',
+  'on-plate': '#FFFFFF',
   ink: '#121312',
   'ink-muted': '#636669',
   heading: '#121312',

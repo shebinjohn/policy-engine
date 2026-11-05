@@ -2,11 +2,17 @@
 import { useState } from 'react'
 import { ALL_POLICIES, GLOSSARY, POLICY_LIST, pathSupport, policyLabel } from '../lib/content.ts'
 import { Field, Glyph, Pill, TextInput, useEngineer } from '../components/ui.tsx'
+import { POLICY_SCENARIO } from '../../content/paths.ts'
+import { SCENARIOS } from '../generated/content.ts'
 
 function FlowDiagram() {
   return (
     <figure className="flow" aria-labelledby="flow-caption">
-      <div className="flow-grid" role="img" aria-label="Owner transactions and module transactions both pass through the Policy Guard before the Safe runs them.">
+      <div
+        className="flow-grid"
+        role="img"
+        aria-label="Owner transactions and module transactions both pass through the Policy Guard before the Safe runs them."
+      >
         <p className="flow-caption flow-caption-top">Owner transaction</p>
         <div className="flow-actor flow-r1">
           <Glyph kind="user" size={20} />
@@ -35,7 +41,8 @@ function FlowDiagram() {
         <p className="flow-caption flow-caption-bottom">Module transaction</p>
       </div>
       <figcaption id="flow-caption" className="muted small">
-        The Policy Guard is installed twice: as the transaction guard and as the module guard. With only one, the other path skips every rule.
+        The Policy Guard is installed twice: as the transaction guard and as the module guard. With only one, the other
+        path skips every rule.
       </figcaption>
     </figure>
   )
@@ -101,8 +108,10 @@ function PolicyCards() {
     <ul className="policy-grid">
       {(list ?? ALL_POLICIES.map((name) => ({ name }))).map((p) => {
         const full = list ? (p as (typeof POLICY_LIST)[number]) : null
+        const scenarioId = POLICY_SCENARIO[p.name]
+        const scenario = scenarioId ? SCENARIOS.find((s) => s.id === scenarioId) : undefined
         return (
-          <li key={p.name} className="policy-card">
+          <li key={p.name} className="policy-card" id={`policy-${p.name}`}>
             <div className="policy-card-head">
               <h3 className="policy-name">{full?.label ?? policyLabel(p.name)}</h3>
               {engineer ? <code className="tech">{p.name}</code> : null}
@@ -111,27 +120,40 @@ function PolicyCards() {
               <>
                 <p className="policy-one">{full.oneLiner}</p>
                 <div className="chips">
-                  <Pill tone={pathSupport(full.name).restricted ? 'warning' : 'neutral'}>{pathSupport(full.name).label}</Pill>
+                  <Pill tone={pathSupport(full.name).restricted ? 'warning' : 'neutral'}>
+                    {pathSupport(full.name).label}
+                  </Pill>
                   {full.stateful ? <Pill tone="info">Remembers what it allowed</Pill> : null}
                 </div>
                 <p className="small">{full.plain}</p>
-                <dl className="policy-facts">
-                  <dt>Where it fits</dt>
-                  <dd>{full.placement}</dd>
-                  <dt>Settings</dt>
-                  <dd>{full.configHelp}</dd>
-                </dl>
-                {full.pitfalls.length > 0 ? (
-                  <div className="pitfalls">
-                    <p className="field-label">Watch out</p>
-                    <ul>
-                      {full.pitfalls.map((x, i) => (
-                        <li key={i}>{x}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
+                <p className="small">
+                  <strong>Where it fits: </strong>
+                  <span className="muted">{full.placement}</span>
+                </p>
+                <details className="disclosure policy-more">
+                  <summary>Settings and pitfalls</summary>
+                  <dl className="policy-facts">
+                    <dt>Settings</dt>
+                    <dd>{full.configHelp}</dd>
+                  </dl>
+                  {full.pitfalls.length > 0 ? (
+                    <div className="pitfalls">
+                      <p className="field-label">Watch out</p>
+                      <ul>
+                        {full.pitfalls.map((x, i) => (
+                          <li key={i}>{x}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </details>
               </>
+            ) : null}
+            {scenario ? (
+              <a className="see-action" id={`see-${p.name}`} href={`#scenario-${scenario.id}`}>
+                See it in action: {scenario.title}
+                <Glyph kind="arrow-right" size={14} />
+              </a>
             ) : null}
           </li>
         )
@@ -151,7 +173,9 @@ function Glossary() {
       <Field id="glossary-filter" label="Find a term">
         <TextInput id="glossary-filter" value={q} onChange={setQ} placeholder="Catch-all, waiting period, nonce…" />
       </Field>
-      {terms.length === 0 ? <p className="muted">{GLOSSARY.length === 0 ? 'The glossary is not published yet.' : 'No term matches.'}</p> : null}
+      {terms.length === 0 ? (
+        <p className="muted">{GLOSSARY.length === 0 ? 'The glossary is not published yet.' : 'No term matches.'}</p>
+      ) : null}
       <dl className="terms">
         {terms.map((t) => (
           <div key={t.term} className="term">

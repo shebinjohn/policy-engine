@@ -15,13 +15,21 @@ type View = 'sandbox' | 'scenarios' | 'scenario' | 'challenges' | 'challenge' | 
 interface Route {
   view: View
   id?: string
+  /** 1-based scenario step from #scenario-<id>-step-<n>. */
+  step?: number
+  /** Setup code from #run-<code>. */
+  code?: string
 }
 
-function parse(hash: string): Route {
+/** Routes are plain #names (ASCII letters, digits and hyphens), the only kind an artifact link carries. */
+export function parseRoute(hash: string): Route {
   const h = hash.replace(/^#/, '')
+  if (h.startsWith('run-') && /^run-[a-z0-9]+$/.test(h)) return { view: 'sandbox', code: h.slice(4) }
   if (h.startsWith('scenario-')) {
-    const id = h.slice('scenario-'.length)
-    return SCENARIOS.some((s) => s.id === id) ? { view: 'scenario', id } : { view: 'scenarios' }
+    const rest = h.slice('scenario-'.length)
+    const m = /^(.*)-step-(\d+)$/.exec(rest)
+    if (m && SCENARIOS.some((s) => s.id === m[1])) return { view: 'scenario', id: m[1], step: Number(m[2]) }
+    return SCENARIOS.some((s) => s.id === rest) ? { view: 'scenario', id: rest } : { view: 'scenarios' }
   }
   if (h.startsWith('challenge-')) {
     const id = h.slice('challenge-'.length)
@@ -72,16 +80,21 @@ const NAV: { view: View; label: string; hash: string; match: View[] }[] = [
 ]
 
 export function App() {
-  const [route, setRoute] = useState<Route>(() => parse(location.hash))
+  const [route, setRoute] = useState<Route>(() => parseRoute(location.hash))
   const [engineer, setEngineer] = useState(() => Boolean(load().engineer))
-  const [seed, setSeed] = useState<Seed | null>(null)
+  const [seed, setSeed] = useState<Seed | null>(() => (route.code ? { id: 1, kind: 'code', code: route.code } : null))
   const [resetKey, setResetKey] = useState(0)
   const [progress, record] = useProgress()
 
   useEffect(() => {
     const on = () => {
-      setRoute(parse(location.hash))
-      window.scrollTo({ top: 0 })
+      const next = parseRoute(location.hash)
+      setRoute((prev) => {
+        // Moving between steps of the same scenario keeps the view and its scroll position.
+        if (!(prev.view === 'scenario' && next.view === 'scenario' && prev.id === next.id)) window.scrollTo({ top: 0 })
+        return next
+      })
+      if (next.code) setSeed({ id: Date.now(), kind: 'code', code: next.code })
     }
     window.addEventListener('hashchange', on)
     return () => window.removeEventListener('hashchange', on)
@@ -92,8 +105,8 @@ export function App() {
     save({ engineer: v })
   }
 
-  const tryInSandbox = (world: World, tx: TxSpec, from: string) => {
-    setSeed({ id: Date.now(), world, tx, from })
+  const openInSandbox = (world: World, tx: TxSpec, from: string, blurb: string, run = false) => {
+    setSeed({ id: Date.now(), kind: 'world', world, tx, from, blurb, run })
     go('sandbox')
   }
 
@@ -110,7 +123,13 @@ export function App() {
           </a>
           <nav className="nav" aria-label="Main">
             {NAV.map((n) => (
-              <a key={n.view} id={`nav-${n.view}`} href={`#${n.hash}`} className="nav-link" aria-current={n.match.includes(route.view) ? 'page' : undefined}>
+              <a
+                key={n.view}
+                id={`nav-${n.view}`}
+                href={`#${n.hash}`}
+                className="nav-link"
+                aria-current={n.match.includes(route.view) ? 'page' : undefined}
+              >
                 {n.label}
               </a>
             ))}
@@ -136,9 +155,25 @@ export function App() {
         <Boundary key={`${route.view}-${route.id ?? ''}-${resetKey}`} onReset={() => setResetKey((k) => k + 1)}>
           {route.view === 'scenarios' ? <ScenarioList onOpen={(id) => go(`scenario-${id}`)} /> : null}
           {route.view === 'scenario' && scenario ? (
-            <ScenarioView key={scenario.id} scenario={scenario} onBack={() => go('scenarios')} onOpen={(id) => go(`scenario-${id}`)} onTry={tryInSandbox} />
+            <ScenarioView
+              key={scenario.id}
+              scenario={scenario}
+              step={route.step}
+              onBack={() => go('scenarios')}
+              onOpen={(id) => go(`scenario-${id}`)}
+              onTry={(world, tx) =>
+                openInSandbox(
+                  world,
+                  tx,
+                  `From the scenario ${scenario.title}`,
+                  'The Safe as it was before this step, with its transaction ready to run. Change anything and run it.'
+                )
+              }
+            />
           ) : null}
-          {route.view === 'challenges' ? <ChallengeList onOpen={(id) => go(`challenge-${id}`)} progress={progress} /> : null}
+          {route.view === 'challenges' ? (
+            <ChallengeList onOpen={(id) => go(`challenge-${id}`)} progress={progress} />
+          ) : null}
           {route.view === 'challenge' && challenge ? (
             <ChallengeView
               key={challenge.id}
@@ -146,7 +181,15 @@ export function App() {
               onBack={() => go('challenges')}
               onOpen={(id) => go(`challenge-${id}`)}
               onSolved={record}
-              bestStars={progress[challenge.id]?.stars ?? 0}
+              progress={progress[challenge.id]}
+              onOpenInSandbox={(world, tx) =>
+                openInSandbox(
+                  world,
+                  tx,
+                  `Your rules for ${challenge.title}`,
+                  'The challenge Safe with your rules, and its first test ready to run. Try anything the tests did not.'
+                )
+              }
             />
           ) : null}
           {route.view === 'learn' ? <Learn /> : null}
@@ -155,8 +198,8 @@ export function App() {
       <footer className="app-footer">
         <div className="gutter footer-inner">
           <p className="muted small">
-            Simulates a Safe 1.5.0 account with the SafePolicyGuard installed as transaction and module guard. Every published scenario and challenge is
-            replayed against the real contracts.
+            Simulates a Safe 1.5.0 account with the SafePolicyGuard installed as transaction and module guard. Every
+            published scenario and challenge is replayed against the real contracts.
           </p>
           <p className="small">
             <a href="https://github.com/safe-research/policy-engine" target="_blank" rel="noreferrer">

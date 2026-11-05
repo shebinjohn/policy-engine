@@ -22,104 +22,121 @@ import { Button, Callout, CopyText, Glyph, Pill, Status, Tech, useEngineer } fro
 // ---------------------------------------------------------------------------------------------
 
 /** The verdict. Focusable (tabIndex -1) so a run can move keyboard and screen-reader focus to it. */
-export const Verdict = forwardRef<HTMLDivElement, { result: SimResult; id?: string; children?: ReactNode }>(function Verdict({ result, id, children }, ref) {
-  const engineer = useEngineer()
-  if (result.ok) {
-    const noGuard = result.trace.find((e) => e.id === 'safe.noGuard')
-    const managed = result.trace.some((e) => e.id === 'engine.allowedCall')
-    const sub = noGuard
-      ? 'It ran without any rule being checked.'
-      : managed
-        ? 'Managing rules is always allowed. New rules still wait out the waiting period.'
-        : result.matched
-          ? `${policyLabel(result.matched.policy)} approved it${result.matched.isFallback ? ' through the catch-all rule' : ''}.`
-          : 'The transaction ran.'
+export const Verdict = forwardRef<HTMLDivElement, { result: SimResult; id?: string; children?: ReactNode }>(
+  function Verdict({ result, id, children }, ref) {
+    const engineer = useEngineer()
+    if (result.ok) {
+      const noGuard = result.trace.find((e) => e.id === 'safe.noGuard')
+      const managed = result.trace.some((e) => e.id === 'engine.allowedCall')
+      const sub = noGuard
+        ? 'It ran without any rule being checked.'
+        : managed
+          ? 'Managing rules is always allowed. New rules still wait out the waiting period.'
+          : result.matched
+            ? `${policyLabel(result.matched.policy)} approved it${result.matched.isFallback ? ' through the catch-all rule' : ''}.`
+            : 'The transaction ran.'
+      return (
+        <TermScope>
+          <div className="verdict tone-success" tabIndex={-1} ref={ref} id={id} aria-label={`Verdict: Allowed. ${sub}`}>
+            <Glyph kind="pass" size={32} />
+            <div className="verdict-text">
+              <p className="verdict-word">Allowed</p>
+              <p className="verdict-sub">
+                <Termed text={sub} />
+              </p>
+              {children}
+            </div>
+          </div>
+        </TermScope>
+      )
+    }
+    const err = result.error
+    if (!err) return null
+    const deep = innermost(err)
+    const info = errorInfo(deep.error.error, deep.policy) ?? errorInfo(err.error, err.policy)
+    const word = err.by === 'execution' ? 'Failed' : 'Blocked'
+    const who =
+      err.by === 'safe'
+        ? 'Stopped by the Safe'
+        : err.by === 'execution'
+          ? 'The rules allowed it. The call itself failed.'
+          : deep.policy
+            ? `Stopped by ${policyLabel(deep.policy)}`
+            : 'Stopped by the Policy Guard'
+    const chain: string[] = []
+    for (let e: typeof err | undefined = err; e; e = e.reason) if (e.policy) chain.push(policyLabel(e.policy))
     return (
       <TermScope>
-        <div className="verdict tone-success" tabIndex={-1} ref={ref} id={id} aria-label={`Verdict: Allowed. ${sub}`}>
-          <Glyph kind="pass" size={32} />
+        <div
+          className="verdict tone-danger"
+          tabIndex={-1}
+          ref={ref}
+          id={id}
+          aria-label={`Verdict: ${word}. ${who}. ${info?.title ?? deep.error.error}.`}
+        >
+          <Glyph kind="fail" size={32} />
           <div className="verdict-text">
-            <p className="verdict-word">Allowed</p>
-            <p className="verdict-sub">
-              <Termed text={sub} />
-            </p>
+            <p className="verdict-word">{word}</p>
+            <p className="verdict-sub">{who}</p>
+            <div className="verdict-reason">
+              <p className="verdict-title">{info?.title ?? deep.error.error}</p>
+              <p>
+                <Termed text={err.message} />
+              </p>
+              {info?.plain && info.plain !== err.message ? (
+                <p className="muted">
+                  <Termed text={info.plain} />
+                </p>
+              ) : null}
+              {chain.length > 1 ? (
+                <p className="verdict-chain">
+                  <span className="muted">Path: </span>
+                  {chain.map((c, i) => (
+                    <span key={i}>
+                      {i > 0 ? <Glyph kind="arrow-right" size={12} /> : null}
+                      {c}
+                    </span>
+                  ))}
+                </p>
+              ) : null}
+              {info?.fix ? (
+                <p className="verdict-fix">
+                  <strong>How to fix: </strong>
+                  <Termed text={info.fix} />
+                </p>
+              ) : null}
+              {engineer ? (
+                <p className="tech">
+                  {solidityError(err)}
+                  {info?.tech ? ` · ${info.tech}` : ''}
+                </p>
+              ) : null}
+            </div>
             {children}
           </div>
         </div>
       </TermScope>
     )
   }
-  const err = result.error
-  if (!err) return null
-  const deep = innermost(err)
-  const info = errorInfo(deep.error.error, deep.policy) ?? errorInfo(err.error, err.policy)
-  const word = err.by === 'execution' ? 'Failed' : 'Blocked'
-  const who =
-    err.by === 'safe'
-      ? 'Stopped by the Safe'
-      : err.by === 'execution'
-        ? 'The rules allowed it. The call itself failed.'
-        : deep.policy
-          ? `Stopped by ${policyLabel(deep.policy)}`
-          : 'Stopped by the Policy Guard'
-  const chain: string[] = []
-  for (let e: typeof err | undefined = err; e; e = e.reason) if (e.policy) chain.push(policyLabel(e.policy))
-  return (
-    <TermScope>
-      <div className="verdict tone-danger" tabIndex={-1} ref={ref} id={id} aria-label={`Verdict: ${word}. ${who}. ${info?.title ?? deep.error.error}.`}>
-        <Glyph kind="fail" size={32} />
-        <div className="verdict-text">
-          <p className="verdict-word">{word}</p>
-          <p className="verdict-sub">{who}</p>
-          <div className="verdict-reason">
-            <p className="verdict-title">{info?.title ?? deep.error.error}</p>
-            <p>
-              <Termed text={err.message} />
-            </p>
-            {info?.plain && info.plain !== err.message ? (
-              <p className="muted">
-                <Termed text={info.plain} />
-              </p>
-            ) : null}
-            {chain.length > 1 ? (
-              <p className="verdict-chain">
-                <span className="muted">Path: </span>
-                {chain.map((c, i) => (
-                  <span key={i}>
-                    {i > 0 ? <Glyph kind="arrow-right" size={12} /> : null}
-                    {c}
-                  </span>
-                ))}
-              </p>
-            ) : null}
-            {info?.fix ? (
-              <p className="verdict-fix">
-                <strong>How to fix: </strong>
-                <Termed text={info.fix} />
-              </p>
-            ) : null}
-            {engineer ? (
-              <p className="tech">
-                {solidityError(err)}
-                {info?.tech ? ` · ${info.tech}` : ''}
-              </p>
-            ) : null}
-          </div>
-          {children}
-        </div>
-      </div>
-    </TermScope>
-  )
-})
+)
 
 /** "Last run: Blocked at Policy (Recipient Allowlist). This run: Allowed." */
-export function CompareLine({ previous, current, path }: { previous: { result: SimResult; path: 'owner' | 'module' }; current: SimResult; path: 'owner' | 'module' }) {
+export function CompareLine({
+  previous,
+  current,
+  path
+}: {
+  previous: { result: SimResult; path: 'owner' | 'module' }
+  current: SimResult
+  path: 'owner' | 'module'
+}) {
   const before = runLine(previous.result, previous.path)
   const now = runLine(current, path)
   return (
     <p className="compare">
       <span className="muted">Last run: </span>
-      <span className={before.ok ? 'text-success' : 'text-danger'}>{before.text}.</span> <span className="muted">This run: </span>
+      <span className={before.ok ? 'text-success' : 'text-danger'}>{before.text}.</span>{' '}
+      <span className="muted">This run: </span>
       <span className={now.ok ? 'text-success' : 'text-danger'}>{now.text}.</span>
     </p>
   )
@@ -133,9 +150,19 @@ function EventRow({ ev }: { ev: TraceEvent }) {
   const engineer = useEngineer()
   return (
     <li className={`pipe-event is-${ev.status}`}>
-      <span className={`pipe-event-mark tone-${ev.status === 'pass' ? 'success' : ev.status === 'fail' ? 'danger' : ev.status === 'warn' ? 'warning' : 'muted'}`}>
+      <span
+        className={`pipe-event-mark tone-${ev.status === 'pass' ? 'success' : ev.status === 'fail' ? 'danger' : ev.status === 'warn' ? 'warning' : 'muted'}`}
+      >
         <Glyph kind={ev.status} size={14} />
-        <span className="sr-only">{ev.status === 'pass' ? 'Passed: ' : ev.status === 'fail' ? 'Failed: ' : ev.status === 'warn' ? 'Warning: ' : ''}</span>
+        <span className="sr-only">
+          {ev.status === 'pass'
+            ? 'Passed: '
+            : ev.status === 'fail'
+              ? 'Failed: '
+              : ev.status === 'warn'
+                ? 'Warning: '
+                : ''}
+        </span>
       </span>
       <div className="pipe-event-text">
         <p className="pipe-event-title">{ev.title}</p>
@@ -172,7 +199,16 @@ function EdgeRow({ edge, here }: { edge: SharpEdge; here?: string }) {
 
 function SubBlock({ sub, path, titles }: { sub: SubItem; path: 'owner' | 'module'; titles: string[] }) {
   const ran = sub.stages.filter((s) => s.items.length > 0)
-  const status = sub.status === 'pass' ? 'Passed' : sub.status === 'fail' ? 'Failed' : sub.status === 'warn' ? 'Warning' : sub.status === 'none' ? 'Not reached' : 'Done'
+  const status =
+    sub.status === 'pass'
+      ? 'Passed'
+      : sub.status === 'fail'
+        ? 'Failed'
+        : sub.status === 'warn'
+          ? 'Warning'
+          : sub.status === 'none'
+            ? 'Not reached'
+            : 'Done'
   return (
     <li className={`pipe-sub is-${sub.status}`}>
       <div className="pipe-sub-head">
@@ -186,7 +222,9 @@ function SubBlock({ sub, path, titles }: { sub: SubItem; path: 'owner' | 'module
         <ul className="pipe-sub-stages">
           {ran.map((st) => (
             <li key={st.key} className="pipe-sub-stage">
-              <span className="pipe-sub-stage-label">{st.key === 'policy' && st.policy ? policyLabel(st.policy) : stageLabel(st.key, path, true)}</span>
+              <span className="pipe-sub-stage-label">
+                {st.key === 'policy' && st.policy ? policyLabel(st.policy) : stageLabel(st.key, path, true)}
+              </span>
               <ul className="pipe-events">
                 {st.items.map((it, i) => (
                   <Item key={i} it={it} path={path} titles={[]} />
@@ -216,7 +254,9 @@ export interface Decided {
 function DecidedRule({ result, decided }: { result: SimResult; decided: Decided }) {
   const m = result.matched
   if (!m) return null
-  const entry = decided.world.table[m.access] ?? Object.values(decided.world.table).find((e) => e.access.toLowerCase() === m.access.toLowerCase())
+  const entry =
+    decided.world.table[m.access] ??
+    Object.values(decided.world.table).find((e) => e.access.toLowerCase() === m.access.toLowerCase())
   if (!entry) return null
   return (
     <div className="decided">
@@ -370,7 +410,9 @@ export function Effects({ result }: { result: SimResult }) {
   if (effects.length === 0) return <p className="muted">Nothing changed.</p>
   return (
     <div className="effects">
-      {!result.ok && undone.length > 0 ? <p className="muted">Nothing changed. These changes were staged while checking and then undone:</p> : null}
+      {!result.ok && undone.length > 0 ? (
+        <p className="muted">Nothing changed. These changes were staged while checking and then undone:</p>
+      ) : null}
       <ul className="effect-list">
         {[...kept, ...undone].map((e, i) => (
           <li key={i} className={`effect${e.reverted ? ' is-reverted' : ''}`}>
@@ -432,8 +474,11 @@ export function GuardNotes({ result, tx, world }: { result: SimResult; tx: TxSpe
   if (unchecked) {
     out.push(
       <Callout key="unchecked" tone="warning" title="This batch ran unchecked">
-        No guard was installed when it started, and the Safe picks its guard once, before a transaction runs. None of its {plural(batch.length, 'step')} was checked.
-        {result.ok && installs.length > 0 ? ' The guards it installed check every transaction from the next one on.' : ''}
+        No guard was installed when it started, and the Safe picks its guard once, before a transaction runs. None of
+        its {plural(batch.length, 'step')} was checked.
+        {result.ok && installs.length > 0
+          ? ' The guards it installed check every transaction from the next one on.'
+          : ''}
       </Callout>
     )
   } else if (result.ok) {
@@ -449,7 +494,8 @@ export function GuardNotes({ result, tx, world }: { result: SimResult; tx: TxSpe
     for (const g of removals) {
       out.push(
         <Callout key={`rm-${g.i}`} tone="info" title={`Step ${g.i + 1} removed the ${g.which}`}>
-          This batch was still checked by it: the Safe picked its guard before the batch ran, and ran its after-check too.
+          This batch was still checked by it: the Safe picked its guard before the batch ran, and ran its after-check
+          too.
         </Callout>
       )
     }
@@ -490,7 +536,8 @@ function stageName(result: SimResult, path: 'owner' | 'module', n: number): stri
   const stages = buildStages(splitEnd(result.trace).main)
   if (n > stages.length) return `Outcome: ${outcomeOf(result).word}`
   const st = stages[n - 1]
-  const label = st.key === 'policy' && st.policy ? `Policy: ${policyLabel(st.policy)}` : stageLabel(st.key as StageKey, path, false)
+  const label =
+    st.key === 'policy' && st.policy ? `Policy: ${policyLabel(st.policy)}` : stageLabel(st.key as StageKey, path, false)
   return `${label}, ${statusWord(st.key, st.status)}`
 }
 
@@ -607,7 +654,11 @@ export function ResultView({
           className={`pipe-wrap${step !== null ? ' is-stepping' : ''}`}
           tabIndex={step !== null ? 0 : undefined}
           onKeyDown={onKeyDown}
-          aria-label={step !== null ? 'Decision path, step-through mode. Right arrow reveals the next stage, left arrow goes back, Escape shows all.' : undefined}
+          aria-label={
+            step !== null
+              ? 'Decision path, step-through mode. Right arrow reveals the next stage, left arrow goes back, Escape shows all.'
+              : undefined
+          }
         >
           <Pipeline
             result={result}

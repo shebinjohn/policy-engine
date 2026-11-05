@@ -54,14 +54,27 @@ export function Glyph({ kind, size = 16, title }: { kind: GlyphKind; size?: numb
     className: `glyph glyph-${kind}`,
     focusable: false
   } as const
-  const stroke = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' } as const
+  const stroke = {
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.8,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round'
+  } as const
   let body: ReactNode
   switch (kind) {
     case 'pass':
       body = (
         <>
           <circle cx="8" cy="8" r="7" fill="currentColor" />
-          <path d="M4.8 8.2l2.1 2.1 4.3-4.6" fill="none" stroke="var(--surface-raised)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          <path
+            d="M4.8 8.2l2.1 2.1 4.3-4.6"
+            fill="none"
+            stroke="var(--surface-raised)"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </>
       )
       break
@@ -69,14 +82,26 @@ export function Glyph({ kind, size = 16, title }: { kind: GlyphKind; size?: numb
       body = (
         <>
           <circle cx="8" cy="8" r="7" fill="currentColor" />
-          <path d="M5.5 5.5l5 5M10.5 5.5l-5 5" fill="none" stroke="var(--surface-raised)" strokeWidth="1.8" strokeLinecap="round" />
+          <path
+            d="M5.5 5.5l5 5M10.5 5.5l-5 5"
+            fill="none"
+            stroke="var(--surface-raised)"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+          />
         </>
       )
       break
     case 'warn':
       body = (
         <>
-          <path d="M8 1.6l6.8 12.2H1.2z" fill="currentColor" stroke="currentColor" strokeWidth="1" strokeLinejoin="round" />
+          <path
+            d="M8 1.6l6.8 12.2H1.2z"
+            fill="currentColor"
+            stroke="currentColor"
+            strokeWidth="1"
+            strokeLinejoin="round"
+          />
           <path d="M8 6v3.6" stroke="var(--surface-raised)" strokeWidth="1.8" strokeLinecap="round" />
           <circle cx="8" cy="11.8" r="1" fill="var(--surface-raised)" />
         </>
@@ -144,7 +169,11 @@ export function Glyph({ kind, size = 16, title }: { kind: GlyphKind; size?: numb
       body = (
         <>
           <rect x="5.2" y="5.2" width="8" height="8" rx="1.5" {...stroke} strokeWidth={1.5} />
-          <path d="M10.8 3.4V3a1.2 1.2 0 00-1.2-1.2H3A1.2 1.2 0 001.8 3v6.6A1.2 1.2 0 003 10.8h.4" {...stroke} strokeWidth={1.5} />
+          <path
+            d="M10.8 3.4V3a1.2 1.2 0 00-1.2-1.2H3A1.2 1.2 0 001.8 3v6.6A1.2 1.2 0 003 10.8h.4"
+            {...stroke}
+            strokeWidth={1.5}
+          />
         </>
       )
       break
@@ -203,7 +232,9 @@ export function toneOf(status: string): Tone {
 /** A status mark with its word: never colour alone. */
 export function Status({ status, label, compact = false }: { status: string; label: string; compact?: boolean }) {
   const glyph: GlyphKind =
-    status === 'pass' || status === 'fail' || status === 'warn' || status === 'skip' || status === 'info' ? status : 'none'
+    status === 'pass' || status === 'fail' || status === 'warn' || status === 'skip' || status === 'info'
+      ? status
+      : 'none'
   return (
     <span className={`status tone-${toneOf(status)}${compact ? ' is-compact' : ''}`}>
       <Glyph kind={glyph} size={compact ? 14 : 16} />
@@ -216,8 +247,19 @@ export function Pill({ tone = 'neutral', children }: { tone?: Tone; children: Re
   return <span className={`pill tone-${tone}`}>{children}</span>
 }
 
-export function Callout({ tone = 'info', title, children, glyph }: { tone?: Tone; title?: ReactNode; children?: ReactNode; glyph?: GlyphKind }) {
-  const g: GlyphKind = glyph ?? (tone === 'success' ? 'pass' : tone === 'danger' ? 'fail' : tone === 'warning' ? 'warn' : 'info')
+export function Callout({
+  tone = 'info',
+  title,
+  children,
+  glyph
+}: {
+  tone?: Tone
+  title?: ReactNode
+  children?: ReactNode
+  glyph?: GlyphKind
+}) {
+  const g: GlyphKind =
+    glyph ?? (tone === 'success' ? 'pass' : tone === 'danger' ? 'fail' : tone === 'warning' ? 'warn' : 'info')
   return (
     <div className={`callout tone-${tone}`}>
       <Glyph kind={g} />
@@ -233,7 +275,19 @@ export function Callout({ tone = 'info', title, children, glyph }: { tone?: Tone
 // Form controls
 // ---------------------------------------------------------------------------------------------
 
-export function Field({ id, label, hint, children, inline = false }: { id?: string; label: ReactNode; hint?: ReactNode; children: ReactNode; inline?: boolean }) {
+export function Field({
+  id,
+  label,
+  hint,
+  children,
+  inline = false
+}: {
+  id?: string
+  label: ReactNode
+  hint?: ReactNode
+  children: ReactNode
+  inline?: boolean
+}) {
   return (
     <div className={`field${inline ? ' is-inline' : ''}`}>
       {id ? (
@@ -256,7 +310,19 @@ export interface Option {
   disabled?: boolean
 }
 
-export function Select({ id, value, onChange, options, ariaLabel }: { id: string; value: string; onChange: (v: string) => void; options: Option[]; ariaLabel?: string }) {
+export function Select({
+  id,
+  value,
+  onChange,
+  options,
+  ariaLabel
+}: {
+  id: string
+  value: string
+  onChange: (v: string) => void
+  options: Option[]
+  ariaLabel?: string
+}) {
   const groups: { name: string | undefined; items: Option[] }[] = []
   for (const o of options) {
     const last = groups[groups.length - 1]
@@ -427,7 +493,9 @@ export function Tabs<T extends string>({
 
 /** Props for the panel of a Tabs option. Pass active=false when the tabs are not in use (wide layouts). */
 export function tabPanelProps(id: string, value: string, active: boolean) {
-  return active ? { id: `${id}-panel-${value}`, role: 'tabpanel', 'aria-labelledby': `${id}-tab-${value}`, tabIndex: -1 } : { id: `${id}-panel-${value}` }
+  return active
+    ? { id: `${id}-panel-${value}`, role: 'tabpanel', 'aria-labelledby': `${id}-tab-${value}`, tabIndex: -1 }
+    : { id: `${id}-panel-${value}` }
 }
 
 /** True while a media query matches. */
@@ -455,7 +523,19 @@ export function useMedia(query: string): boolean {
   return match
 }
 
-export function Checkbox({ id, checked, onChange, label, hint }: { id: string; checked: boolean; onChange: (v: boolean) => void; label: ReactNode; hint?: ReactNode }) {
+export function Checkbox({
+  id,
+  checked,
+  onChange,
+  label,
+  hint
+}: {
+  id: string
+  checked: boolean
+  onChange: (v: boolean) => void
+  label: ReactNode
+  hint?: ReactNode
+}) {
   return (
     <label className="check" htmlFor={id}>
       <input id={id} type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
@@ -468,9 +548,26 @@ export function Checkbox({ id, checked, onChange, label, hint }: { id: string; c
   )
 }
 
-export function Switch({ id, checked, onChange, label }: { id: string; checked: boolean; onChange: (v: boolean) => void; label: ReactNode }) {
+export function Switch({
+  id,
+  checked,
+  onChange,
+  label
+}: {
+  id: string
+  checked: boolean
+  onChange: (v: boolean) => void
+  label: ReactNode
+}) {
   return (
-    <button id={id} type="button" role="switch" aria-checked={checked} className={`switch${checked ? ' is-on' : ''}`} onClick={() => onChange(!checked)}>
+    <button
+      id={id}
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      className={`switch${checked ? ' is-on' : ''}`}
+      onClick={() => onChange(!checked)}
+    >
       <span className="switch-track" aria-hidden="true">
         <span className="switch-thumb" />
       </span>
@@ -551,7 +648,14 @@ export function AddressSelect({
         }}
       />
       {showCustom ? (
-        <TextInput id={`${id}-custom`} ariaLabel="Custom address" value={value} onChange={onChange} placeholder="0x…" mono />
+        <TextInput
+          id={`${id}-custom`}
+          ariaLabel="Custom address"
+          value={value}
+          onChange={onChange}
+          placeholder="0x…"
+          mono
+        />
       ) : null}
     </div>
   )
@@ -581,7 +685,14 @@ export function Button({
   type?: 'button' | 'submit'
 }) {
   return (
-    <button id={id} type={type} className={`btn is-${variant} is-${size}`} onClick={onClick} disabled={disabled} title={title}>
+    <button
+      id={id}
+      type={type}
+      className={`btn is-${variant} is-${size}`}
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+    >
       {children}
     </button>
   )
@@ -629,6 +740,53 @@ export function CopyText({ text, label = 'Copy' }: { text: string; label?: strin
         </span>
       </div>
     </div>
+  )
+}
+
+/** A small "copy link" control for a page fragment. Falls back to a selectable field. */
+export function CopyLink({ id, label, fragment }: { id: string; label: string; fragment: string }) {
+  const [state, setState] = useState<'idle' | 'copied' | 'show'>('idle')
+  const full = () => {
+    try {
+      return window.location.href.split('#')[0] + fragment
+    } catch {
+      return fragment
+    }
+  }
+  const copy = () => {
+    const text = full()
+    try {
+      const p = navigator.clipboard?.writeText(text)
+      if (!p) return setState('show')
+      p.then(
+        () => setState('copied'),
+        () => setState('show')
+      )
+    } catch {
+      setState('show')
+    }
+  }
+  return (
+    <span className="copy-link">
+      <button type="button" id={id} className="link-button" onClick={copy}>
+        <Glyph kind="copy" size={12} />
+        {label}
+      </button>
+      <span className="muted small" role="status">
+        {state === 'copied' ? 'Copied' : ''}
+      </span>
+      {state === 'show' ? (
+        <input
+          id={`${id}-text`}
+          className="input is-mono copy-link-text"
+          readOnly
+          value={full()}
+          aria-label={label}
+          onFocus={(e) => e.currentTarget.select()}
+          autoFocus
+        />
+      ) : null}
+    </span>
   )
 }
 

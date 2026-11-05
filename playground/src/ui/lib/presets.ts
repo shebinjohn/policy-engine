@@ -30,7 +30,8 @@ export const PRESETS: Preset[] = [
   {
     id: 'example',
     label: 'Example treasury',
-    blurb: 'Both guards on and five rules: pay the vendor any time, the contractor once, batches checked step by step, everything else needs the co-signer.',
+    blurb:
+      'Both guards on and five rules: pay the vendor any time, the contractor once, batches checked step by step, everything else needs the co-signer.',
     setup: {
       owners: ['Alice', 'Bob', 'Carol'],
       threshold: 2,
@@ -50,7 +51,12 @@ export const PRESETS: Preset[] = [
           note: 'Pay the vendor any time, the contractor once'
         },
         { target: 'Dave', selector: 'none', policy: 'NativeTransferPolicy', note: 'Plain ETH to the vendor' },
-        { target: 'SAFE', selector: 'transfer', policy: 'AllowedModulePolicy', config: { module: 'AllowanceModule', allowed: true } },
+        {
+          target: 'SAFE',
+          selector: 'transfer',
+          policy: 'AllowedModulePolicy',
+          config: { module: 'AllowanceModule', allowed: true }
+        },
         { target: 'MultiSend', selector: 'multiSend', operation: 'DELEGATECALL', policy: 'MultiSendPolicy' },
         { fallback: 'CALL', operation: 'CALL', policy: 'CoSignerPolicy', config: { cosigner: 'CoSigner' } }
       ]
@@ -61,13 +67,20 @@ export const PRESETS: Preset[] = [
     id: 'fresh',
     label: 'Fresh hardened Safe',
     blurb: 'Both guards on and no rules yet. Deny by default: every transaction is blocked until you add a rule.',
-    setup: { owners: ['Alice', 'Bob', 'Carol'], threshold: 2, modules: ['AllowanceModule'], balances: BALANCES, rules: [] },
+    setup: {
+      owners: ['Alice', 'Bob', 'Carol'],
+      threshold: 2,
+      modules: ['AllowanceModule'],
+      balances: BALANCES,
+      rules: []
+    },
     tx: PAY_DAVE
   },
   {
     id: 'unprotected',
     label: 'Unprotected Safe (no guards yet)',
-    blurb: 'A plain Safe with no guard. Nothing checks transactions, so any 2 owners can do anything. Draft rules, then harden it in one batch.',
+    blurb:
+      'A plain Safe with no guard. Nothing checks transactions, so any 2 owners can do anything. Draft rules, then harden it in one batch.',
     setup: {
       owners: ['Alice', 'Bob', 'Carol'],
       threshold: 2,
@@ -96,7 +109,13 @@ export const PRESETS: Preset[] = [
       ],
       guards: { transaction: true, module: false }
     },
-    tx: { label: 'Allowance Module sends 5,000 USDC to Mallory', path: 'module', module: 'AllowanceModule', to: 'USDC', call: { fn: 'transfer', args: ['Mallory', '5000'] } }
+    tx: {
+      label: 'Allowance Module sends 5,000 USDC to Mallory',
+      path: 'module',
+      module: 'AllowanceModule',
+      to: 'USDC',
+      call: { fn: 'transfer', args: ['Mallory', '5000'] }
+    }
   },
   {
     id: 'module-guard-only',
@@ -131,12 +150,31 @@ export interface Example {
 export const EXAMPLES: Example[] = [
   { id: 'pay-dave', label: 'Pay Dave', tx: PAY_DAVE },
   { id: 'pay-mallory', label: 'Pay Mallory', tx: PAY_MALLORY },
-  { id: 'pay-erin', label: 'Pay Erin (once)', tx: { label: 'Pay Erin 800 USDC', to: 'USDC', call: { fn: 'transfer', args: ['Erin', '800'] }, signers: ['Alice', 'Bob'] } },
-  { id: 'eth-dave', label: 'Send ETH to Dave', tx: { label: 'Send 1 ETH to Dave', to: 'Dave', value: '1', signers: ['Alice', 'Bob'] } },
+  {
+    id: 'pay-erin',
+    label: 'Pay Erin (once)',
+    tx: {
+      label: 'Pay Erin 800 USDC',
+      to: 'USDC',
+      call: { fn: 'transfer', args: ['Erin', '800'] },
+      signers: ['Alice', 'Bob']
+    }
+  },
+  {
+    id: 'eth-dave',
+    label: 'Send ETH to Dave',
+    tx: { label: 'Send 1 ETH to Dave', to: 'Dave', value: '1', signers: ['Alice', 'Bob'] }
+  },
   {
     id: 'module-safe',
     label: 'Module pays in SAFE',
-    tx: { label: 'Allowance Module sends 100 SAFE to Erin', path: 'module', module: 'AllowanceModule', to: 'SAFE', call: { fn: 'transfer', args: ['Erin', '100'] } }
+    tx: {
+      label: 'Allowance Module sends 100 SAFE to Erin',
+      path: 'module',
+      module: 'AllowanceModule',
+      to: 'SAFE',
+      call: { fn: 'transfer', args: ['Erin', '100'] }
+    }
   },
   {
     id: 'batch',
@@ -155,7 +193,16 @@ export const EXAMPLES: Example[] = [
       }
     }
   },
-  { id: 'remove-guard', label: 'Remove the guard', tx: { label: 'Remove the transaction guard', to: 'Safe', call: { fn: 'setGuard', args: ['Zero'] }, signers: ['Alice', 'Bob'] } },
+  {
+    id: 'remove-guard',
+    label: 'Remove the guard',
+    tx: {
+      label: 'Remove the transaction guard',
+      to: 'Safe',
+      call: { fn: 'setGuard', args: ['Zero'] },
+      signers: ['Alice', 'Bob']
+    }
+  },
   {
     id: 'remove-guard-cosigned',
     label: 'Remove the guard, co-signed',
@@ -167,5 +214,9 @@ export const EXAMPLES: Example[] = [
       context: { type: 'cosignature', signer: 'CoSigner', over: 'self' }
     }
   },
-  { id: 'wrap', label: 'Wrap ETH', tx: { label: 'Wrap 1 ETH into WETH', to: 'WETH', value: '1', call: { fn: 'deposit' }, signers: ['Alice', 'Bob'] } }
+  {
+    id: 'wrap',
+    label: 'Wrap ETH',
+    tx: { label: 'Wrap 1 ETH into WETH', to: 'WETH', value: '1', call: { fn: 'deposit' }, signers: ['Alice', 'Bob'] }
+  }
 ]

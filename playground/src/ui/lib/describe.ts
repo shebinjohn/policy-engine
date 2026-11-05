@@ -166,13 +166,19 @@ export function decodeConfig(world: World, policy: PolicyName, data: string): Po
 const permWord = (p: PermissionName) => (p === 'ALWAYS' ? 'always' : p === 'ONCE' ? 'once' : 'not allowed')
 
 /** "Dave always, Erin once". Empty string when the policy has no settings. */
-export function describeConfig(world: World, policy: PolicyName | null, config: PolicyConfig | null | undefined): string {
+export function describeConfig(
+  world: World,
+  policy: PolicyName | null,
+  config: PolicyConfig | null | undefined
+): string {
   if (!policy || !config) return ''
   const c = config as Record<string, unknown>
   switch (policy) {
     case 'ERC20TransferPolicy':
     case 'ERC20ApprovePolicy': {
-      const rows = ((c.recipients ?? c.spenders ?? []) as { account: string; permission: PermissionName }[]).filter(Boolean)
+      const rows = ((c.recipients ?? c.spenders ?? []) as { account: string; permission: PermissionName }[]).filter(
+        Boolean
+      )
       if (rows.length === 0) return 'nobody listed'
       return rows.map((r) => `${nameOf(world, r.account)} ${permWord(r.permission)}`).join(', ')
     }
@@ -221,15 +227,21 @@ function liveDescription(world: World, entry: TableEntry): string | null {
     const st = (world.policyState as Record<string, Record<string, unknown>> | undefined)?.[entry.policy]
     if (entry.policy === 'ERC20TransferPolicy' || entry.policy === 'ERC20ApprovePolicy') {
       const table = (st?.recipients ?? st?.spenders) as Record<string, Record<string, number>> | undefined
-      const configured = decodeConfig(world, entry.policy, entry.data) as { recipients?: { account: string; permission: PermissionName }[]; spenders?: { account: string; permission: PermissionName }[] } | null
+      const configured = decodeConfig(world, entry.policy, entry.data) as {
+        recipients?: { account: string; permission: PermissionName }[]
+        spenders?: { account: string; permission: PermissionName }[]
+      } | null
       const rows = configured?.recipients ?? configured?.spenders ?? []
       if (!table) return null
       const tokenKey = Object.keys(table).find((k) => eqHex(k, entry.target))
       const live = tokenKey ? table[tokenKey] : {}
-      const parts = Object.entries(live).map(([acct, perm]) => `${nameOf(world, acct)} ${perm === 2 ? 'always' : 'once'}`)
+      const parts = Object.entries(live).map(
+        ([acct, perm]) => `${nameOf(world, acct)} ${perm === 2 ? 'always' : 'once'}`
+      )
       for (const r of rows) {
         const addr = entity(world, r.account).address
-        if (r.permission === 'ONCE' && !Object.keys(live).some((k) => eqHex(k, addr))) parts.push(`${nameOf(world, r.account)} once, used`)
+        if (r.permission === 'ONCE' && !Object.keys(live).some((k) => eqHex(k, addr)))
+          parts.push(`${nameOf(world, r.account)} once, used`)
       }
       return parts.length ? parts.join(', ') : 'nobody listed'
     }
@@ -364,10 +376,14 @@ export function describeCall(world: World, c: CallLike): string {
         text = `Unwrap ${formatHuman(String(a[0] ?? '0'))} WETH`
         break
       case 'setGuard':
-        text = isZero(world, a[0]) ? 'Remove the transaction guard' : `Set the transaction guard to ${nameOf(world, String(a[0] ?? ''))}`
+        text = isZero(world, a[0])
+          ? 'Remove the transaction guard'
+          : `Set the transaction guard to ${nameOf(world, String(a[0] ?? ''))}`
         break
       case 'setModuleGuard':
-        text = isZero(world, a[0]) ? 'Remove the module guard' : `Set the module guard to ${nameOf(world, String(a[0] ?? ''))}`
+        text = isZero(world, a[0])
+          ? 'Remove the module guard'
+          : `Set the module guard to ${nameOf(world, String(a[0] ?? ''))}`
         break
       case 'enableModule':
         text = `Enable ${nameOf(world, String(a[0] ?? ''))}`

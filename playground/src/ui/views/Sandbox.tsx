@@ -33,7 +33,19 @@ import {
 } from '../components/Safe.tsx'
 import type { LogEntry } from '../components/Safe.tsx'
 import { BATCH_RULE, TxBuilder, hasBatchRule } from '../components/TxBuilder.tsx'
-import { Button, Callout, CopyText, Field, Glyph, Pill, Select, Tabs, TextInput, tabPanelProps, useMedia } from '../components/ui.tsx'
+import {
+  Button,
+  Callout,
+  CopyText,
+  Field,
+  Glyph,
+  Pill,
+  Select,
+  Tabs,
+  TextInput,
+  tabPanelProps,
+  useMedia
+} from '../components/ui.tsx'
 
 interface Run {
   result: SimResult
@@ -59,7 +71,12 @@ interface State {
 }
 
 function logEntry(world: World, tx: TxSpec, result: SimResult): LogEntry {
-  return { at: world.now, label: tx.label ?? describeCall(world, tx), ok: result.ok, why: result.ok ? '' : shortReason(result.error) }
+  return {
+    at: world.now,
+    label: tx.label ?? describeCall(world, tx),
+    ok: result.ok,
+    why: result.ok ? '' : shortReason(result.error)
+  }
 }
 
 /** Start from a world, optionally running its transaction once so the page opens on a verdict. */
@@ -71,7 +88,13 @@ function startFrom(preset: Preset, world: World, tx: TxSpec, runIt: boolean, exa
   try {
     const spec = toTxSpec(world, draft, [])
     const result = engine.simulate(world, spec)
-    return { ...base, world: result.world, run: { result, tx: spec, before: world, n: 0, seen }, log: [logEntry(world, spec, result)], seen: keysOf([world, result.world]) }
+    return {
+      ...base,
+      world: result.world,
+      run: { result, tx: spec, before: world, n: 0, seen },
+      log: [logEntry(world, spec, result)],
+      seen: keysOf([world, result.world])
+    }
   } catch {
     return base
   }
@@ -94,7 +117,8 @@ function fromCode(code: string): State {
     const preset: Preset = {
       id: 'code',
       label: 'From a setup code',
-      blurb: 'A shared Safe and its transaction, rebuilt from a setup code. Its waiting changes, clock and used signatures were not carried over.',
+      blurb:
+        'A shared Safe and its transaction, rebuilt from a setup code. Its waiting changes, clock and used signatures were not carried over.',
       setup: shared.setup,
       tx: shared.tx
     }
@@ -151,7 +175,10 @@ function proposeBatchTx(rules: RuleSpec[], signers: string[] | undefined): TxSpe
     to: 'MultiSend',
     operation: 'DELEGATECALL',
     signers,
-    call: { fn: 'multiSend', batch: [{ to: 'PolicyGuard', call: { fn: 'requestConfiguration', configurations: structuredClone(rules) } }] }
+    call: {
+      fn: 'multiSend',
+      batch: [{ to: 'PolicyGuard', call: { fn: 'requestConfiguration', configurations: structuredClone(rules) } }]
+    }
   }
 }
 
@@ -172,8 +199,20 @@ function removeGuardsTx(signers: string[] | undefined): TxSpec {
 }
 
 const REMOVAL_RULES: RuleSpec[] = [
-  { target: 'Safe', selector: 'setGuard', operation: 'CALL', policy: 'AllowPolicy', note: 'Lets the owners remove the transaction guard' },
-  { target: 'Safe', selector: 'setModuleGuard', operation: 'CALL', policy: 'AllowPolicy', note: 'Lets the owners remove the module guard' }
+  {
+    target: 'Safe',
+    selector: 'setGuard',
+    operation: 'CALL',
+    policy: 'AllowPolicy',
+    note: 'Lets the owners remove the transaction guard'
+  },
+  {
+    target: 'Safe',
+    selector: 'setModuleGuard',
+    operation: 'CALL',
+    policy: 'AllowPolicy',
+    note: 'Lets the owners remove the module guard'
+  }
 ]
 
 const reducedMotion = () => {
@@ -190,7 +229,8 @@ function revealResult() {
     const el = document.getElementById('panel-result')
     if (!el) return
     const top = el.getBoundingClientRect().top
-    if (top < 60 || top > window.innerHeight * 0.6) el.scrollIntoView({ block: 'start', behavior: reducedMotion() ? 'auto' : 'smooth' })
+    if (top < 60 || top > window.innerHeight * 0.6)
+      el.scrollIntoView({ block: 'start', behavior: reducedMotion() ? 'auto' : 'smooth' })
   })
 }
 
@@ -199,7 +239,8 @@ function changes(before: World | undefined, after: World): { assets: Set<string>
   const assets = new Set<string>()
   if (!before) return { assets, nonce: false }
   const safe = after.safe.address.toLowerCase()
-  const bal = (w: World, asset: string) => Object.entries(w.balances[asset] ?? {}).find(([h]) => h.toLowerCase() === safe)?.[1] ?? '0'
+  const bal = (w: World, asset: string) =>
+    Object.entries(w.balances[asset] ?? {}).find(([h]) => h.toLowerCase() === safe)?.[1] ?? '0'
   for (const asset of new Set([...Object.keys(before.balances), ...Object.keys(after.balances)])) {
     if (bal(before, asset) !== bal(after, asset)) assets.add(asset)
   }
@@ -253,13 +294,16 @@ function SharePanel({ run }: { run: Run }) {
   return (
     <div className="share" id="share-panel">
       <p className="small">
-        The setup code carries this Safe as it was before the run (owners, guards, modules, balances and rules) and the transaction. Paste it under
-        Reset Safe, or open the link.
+        The setup code carries this Safe as it was before the run (owners, guards, modules, balances and rules) and the
+        transaction. Paste it under Reset Safe, or open the link.
       </p>
       <Field label="Setup code">
         <CopyText text={code} label="Copy code" />
       </Field>
-      <Field label="Link" hint="Works on the website. Inside a Claude artifact the link may lose the code; the code always works.">
+      <Field
+        label="Link"
+        hint="Works on the website. Inside a Claude artifact the link may lose the code; the code always works."
+      >
         <CopyText text={link} label="Copy link" />
       </Field>
     </div>
@@ -325,10 +369,14 @@ export function Sandbox({ seed, onSeedUsed }: { seed?: Seed | null; onSeedUsed?:
   const editEntry = (e: TableEntry) => setEditor({ initial: ruleSpecFromEntry(world, e), title: 'Edit rule' })
   const staged = (e: TableEntry) => changeSet.some((r) => sameRuleKey(world, r, ruleSpecFromEntry(world, e)))
 
-  const propose = () => runTx(managementTx('requestConfiguration', changeSet, `Propose ${plural(changeSet.length, 'change')}`))
-  const setNow = () => runTx(managementTx('configureImmediately', changeSet, `Set ${plural(changeSet.length, 'rule')} immediately`))
-  const apply = (root: string) => runTx(managementTx('applyConfiguration', world.roots[root].configurations, 'Apply change set'))
-  const cancel = (root: string) => runTx(managementTx('invalidateRoot', world.roots[root].configurations, 'Cancel change set'))
+  const propose = () =>
+    runTx(managementTx('requestConfiguration', changeSet, `Propose ${plural(changeSet.length, 'change')}`))
+  const setNow = () =>
+    runTx(managementTx('configureImmediately', changeSet, `Set ${plural(changeSet.length, 'rule')} immediately`))
+  const apply = (root: string) =>
+    runTx(managementTx('applyConfiguration', world.roots[root].configurations, 'Apply change set'))
+  const cancel = (root: string) =>
+    runTx(managementTx('invalidateRoot', world.roots[root].configurations, 'Cancel change set'))
 
   const replace = (next: State) => {
     setState(next)
@@ -360,7 +408,10 @@ export function Sandbox({ seed, onSeedUsed }: { seed?: Seed | null; onSeedUsed?:
   }
   const tableHasBatchRule = Object.values(world.table).some((e) => e.policy === 'MultiSendPolicy')
   const addRules = (rules: RuleSpec[]) =>
-    setState((s) => ({ ...s, changeSet: [...s.changeSet.filter((r) => !rules.some((x) => sameRuleKey(s.world, r, x))), ...rules] }))
+    setState((s) => ({
+      ...s,
+      changeSet: [...s.changeSet.filter((r) => !rules.some((x) => sameRuleKey(s.world, r, x))), ...rules]
+    }))
 
   /** "Rule found" in the path: bring the rule into view in Your Safe and highlight it. */
   const showRule = (access: string) => {
@@ -398,12 +449,24 @@ export function Sandbox({ seed, onSeedUsed }: { seed?: Seed | null; onSeedUsed?:
   const guardActions = g.none ? (
     <div className="helper">
       <p className="helper-title">Harden in one batch</p>
-      <p className="small">Drafts one batch: set your drafted rules, then install the module guard and the transaction guard. Review it in the builder, then run it.</p>
-      {changeSet.length === 0 ? <p className="small text-warning">No rules drafted. Hardened with no rules, the Safe blocks every transaction.</p> : null}
+      <p className="small">
+        Drafts one batch: set your drafted rules, then install the module guard and the transaction guard. Review it in
+        the builder, then run it.
+      </p>
+      {changeSet.length === 0 ? (
+        <p className="small text-warning">
+          No rules drafted. Hardened with no rules, the Safe blocks every transaction.
+        </p>
+      ) : null}
       {!hasBatchRule(changeSet) ? (
         <p className="small">
           Your drafted rules have no rule for batches.{' '}
-          <button type="button" className="link-button" id="harden-add-batch-rule" onClick={() => addRules([{ ...BATCH_RULE }])}>
+          <button
+            type="button"
+            className="link-button"
+            id="harden-add-batch-rule"
+            onClick={() => addRules([{ ...BATCH_RULE }])}
+          >
             Add the Batch Checker rule
           </button>
         </p>
@@ -426,10 +489,17 @@ export function Sandbox({ seed, onSeedUsed }: { seed?: Seed | null; onSeedUsed?:
         </li>
         <li>
           In a later transaction, remove both guards in one batch.{' '}
-          <button type="button" className="link-button" id="removal-batch" onClick={() => draftTx(removeGuardsTx(signersNow))}>
+          <button
+            type="button"
+            className="link-button"
+            id="removal-batch"
+            onClick={() => draftTx(removeGuardsTx(signersNow))}
+          >
             Draft the removal batch
           </button>
-          {!tableHasBatchRule ? <span className="muted"> The Safe has no rule for batches yet, so add one too.</span> : null}
+          {!tableHasBatchRule ? (
+            <span className="muted"> The Safe has no rule for batches yet, so add one too.</span>
+          ) : null}
         </li>
       </ol>
     </details>
@@ -456,7 +526,14 @@ export function Sandbox({ seed, onSeedUsed }: { seed?: Seed | null; onSeedUsed?:
           </Button>
         }
       >
-        <RuleTable world={world} onEdit={editEntry} onRemove={removeEntry} staged={staged} decided={decidedAccess} flashKey={flashKey} />
+        <RuleTable
+          world={world}
+          onEdit={editEntry}
+          onRemove={removeEntry}
+          staged={staged}
+          decided={decidedAccess}
+          flashKey={flashKey}
+        />
         {editor ? (
           <RuleEditor
             key={JSON.stringify(editor.initial ?? {})}
@@ -483,7 +560,9 @@ export function Sandbox({ seed, onSeedUsed }: { seed?: Seed | null; onSeedUsed?:
             <span className="overline" id="sec-time">
               Rule changes and time
             </span>
-            <span className={`fold-line small${waiting.length ? ' text-warning' : ''}`}>{summaryParts.join(' · ')}</span>
+            <span className={`fold-line small${waiting.length ? ' text-warning' : ''}`}>
+              {summaryParts.join(' · ')}
+            </span>
           </summary>
           <div className="fold-body">
             <div className="fold-part">
@@ -496,7 +575,11 @@ export function Sandbox({ seed, onSeedUsed }: { seed?: Seed | null; onSeedUsed?:
                     world={world}
                     rules={changeSet}
                     actions={(_, i) => (
-                      <Button size="sm" variant="ghost" onClick={() => setState((s) => ({ ...s, changeSet: s.changeSet.filter((__, j) => j !== i) }))}>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setState((s) => ({ ...s, changeSet: s.changeSet.filter((__, j) => j !== i) }))}
+                      >
                         Drop
                       </Button>
                     )}
@@ -516,12 +599,19 @@ export function Sandbox({ seed, onSeedUsed }: { seed?: Seed | null; onSeedUsed?:
                         <Button id="changes-propose" variant="primary" onClick={propose}>
                           Propose change
                         </Button>
-                        <Button id="changes-propose-batch" onClick={() => draftTx(proposeBatchTx(changeSet, signersNow))}>
+                        <Button
+                          id="changes-propose-batch"
+                          onClick={() => draftTx(proposeBatchTx(changeSet, signersNow))}
+                        >
                           Propose in a batch
                         </Button>
                       </>
                     )}
-                    <Button id="changes-clear" variant="ghost" onClick={() => setState((s) => ({ ...s, changeSet: [] }))}>
+                    <Button
+                      id="changes-clear"
+                      variant="ghost"
+                      onClick={() => setState((s) => ({ ...s, changeSet: [] }))}
+                    >
                       Clear
                     </Button>
                   </div>
@@ -539,7 +629,10 @@ export function Sandbox({ seed, onSeedUsed }: { seed?: Seed | null; onSeedUsed?:
             </div>
             <div className="fold-part">
               <p className="fold-title">Clock</p>
-              <Clock world={world} onAdvance={(s) => setState((st) => ({ ...st, world: engine.advanceTime(st.world, s) }))} />
+              <Clock
+                world={world}
+                onAdvance={(s) => setState((st) => ({ ...st, world: engine.advanceTime(st.world, s) }))}
+              />
             </div>
             <div className="fold-part">
               <p className="fold-title">Activity</p>
@@ -548,7 +641,13 @@ export function Sandbox({ seed, onSeedUsed }: { seed?: Seed | null; onSeedUsed?:
             <div className="fold-part">
               <p className="fold-title">Reset Safe</p>
               <div className="reset">
-                <Select id="reset-preset" ariaLabel="Preset" value={resetChoice} onChange={setResetChoice} options={PRESETS.map((p) => ({ value: p.id, label: p.label }))} />
+                <Select
+                  id="reset-preset"
+                  ariaLabel="Preset"
+                  value={resetChoice}
+                  onChange={setResetChoice}
+                  options={PRESETS.map((p) => ({ value: p.id, label: p.label }))}
+                />
                 <p className="muted small">{PRESETS.find((p) => p.id === resetChoice)?.blurb}</p>
                 {confirmReset ? (
                   <div className="confirm" role="alertdialog" aria-label="Confirm reset">
@@ -567,7 +666,11 @@ export function Sandbox({ seed, onSeedUsed }: { seed?: Seed | null; onSeedUsed?:
                     Reset…
                   </Button>
                 )}
-                <Field id="paste-code" label="Paste a setup code" hint="Rebuilds a shared Safe and runs its transaction. Replaces your Safe.">
+                <Field
+                  id="paste-code"
+                  label="Paste a setup code"
+                  hint="Rebuilds a shared Safe and runs its transaction. Replaces your Safe."
+                >
                   <div className="paste-row">
                     <TextInput id="paste-code" mono value={paste} onChange={setPaste} placeholder="1p…" />
                     <Button id="paste-load" size="sm" onClick={loadCode} disabled={!paste.trim()}>
@@ -588,7 +691,15 @@ export function Sandbox({ seed, onSeedUsed }: { seed?: Seed | null; onSeedUsed?:
       <div className="panel-head">
         <h2 className="panel-title">Build a transaction</h2>
       </div>
-      <TxBuilder world={world} draft={draft} onChange={(d) => setState((s) => ({ ...s, draft: d }))} changeSet={changeSet} onRun={(tx) => runTx(tx)} examples={examples} onExample={loadExample} />
+      <TxBuilder
+        world={world}
+        draft={draft}
+        onChange={(d) => setState((s) => ({ ...s, draft: d }))}
+        changeSet={changeSet}
+        onRun={(tx) => runTx(tx)}
+        examples={examples}
+        onExample={loadExample}
+      />
     </div>
   )
 
@@ -638,8 +749,8 @@ export function Sandbox({ seed, onSeedUsed }: { seed?: Seed | null; onSeedUsed?:
             <>
               <Pill tone="info">Example</Pill>
               <p>
-                A hardened treasury with five rules. Its first transaction already ran: see why it was blocked. Change anything and run it again, or reset
-                the Safe to another starting point.
+                A hardened treasury with five rules. Its first transaction already ran: see why it was blocked. Change
+                anything and run it again, or reset the Safe to another starting point.
               </p>
             </>
           ) : (

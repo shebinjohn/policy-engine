@@ -23,7 +23,19 @@ import type { ContextDraft, StepDraft, TxDraft } from '../lib/draft.ts'
 import { plural } from '../lib/format.ts'
 import { ConfigurationsEditor } from './Configurations.tsx'
 import { RuleSpecList, guardState } from './Safe.tsx'
-import { AddressSelect, Button, Callout, Checkbox, CopyText, Field, Glyph, Segmented, Select, TextInput, useEngineer } from './ui.tsx'
+import {
+  AddressSelect,
+  Button,
+  Callout,
+  Checkbox,
+  CopyText,
+  Field,
+  Glyph,
+  Segmented,
+  Select,
+  TextInput,
+  useEngineer
+} from './ui.tsx'
 
 // ---------------------------------------------------------------------------------------------
 // Defaults
@@ -65,7 +77,12 @@ function defaultArgs(f: FunctionInfo | undefined): string[] {
 
 function withFn(step: StepDraft, fn: string): StepDraft {
   const info = fnByName(fn)
-  const next: StepDraft = { ...step, mode: fn === 'none' ? 'none' : 'fn', fn: fn === 'none' ? '' : fn, args: defaultArgs(info) }
+  const next: StepDraft = {
+    ...step,
+    mode: fn === 'none' ? 'none' : 'fn',
+    fn: fn === 'none' ? '' : fn,
+    args: defaultArgs(info)
+  }
   if (CONFIG_FNS.includes(fn) && !CONFIG_FNS.includes(step.fn)) next.configurations = []
   if (fn === 'multiSend') next.operation = 'DELEGATECALL'
   else if (step.fn === 'multiSend') next.operation = 'CALL'
@@ -90,17 +107,31 @@ function lookupPreview(world: World, tx: TxSpec, encoded: EncodedTx): Preview {
     if (managed) {
       return tx.path === 'module'
         ? { tone: 'danger', label: 'Blocked', text: 'Modules may not manage rules.' }
-        : { tone: 'info', label: 'No rule needed', text: 'Managing rules is always allowed. New rules wait out the waiting period.' }
+        : {
+            tone: 'info',
+            label: 'No rule needed',
+            text: 'Managing rules is always allowed. New rules wait out the waiting period.'
+          }
     }
-    return { tone: 'danger', label: 'Blocked', text: 'The guard itself cannot be called, except to manage rules through the waiting period.' }
+    return {
+      tone: 'danger',
+      label: 'Blocked',
+      text: 'The guard itself cannot be called, except to manage rules through the waiting period.'
+    }
   }
   const res = engine.lookup(world, to.address, encoded.data, op)
   if ('error' in res) return { tone: 'danger', label: 'Blocked', text: res.error.message }
-  if (!res.entry) return { tone: 'danger', label: 'No rule', text: 'No rule and no catch-all matches. Deny by default: it will be blocked.' }
+  if (!res.entry)
+    return {
+      tone: 'danger',
+      label: 'No rule',
+      text: 'No rule and no catch-all matches. Deny by default: it will be blocked.'
+    }
   const w = describeTableEntry(world, res.entry)
   const support = pathSupport(res.entry.policy)
   const path = tx.path ?? 'owner'
-  const refuses = (support.paths === 'owner-only' && path === 'module') || (support.paths === 'module-only' && path === 'owner')
+  const refuses =
+    (support.paths === 'owner-only' && path === 'module') || (support.paths === 'module-only' && path === 'owner')
   if (refuses) {
     return {
       tone: 'warning',
@@ -116,15 +147,36 @@ export function previewFor(world: World, tx: TxSpec): { preview: Preview; encode
   try {
     encoded = engine.encode(world, tx)
   } catch (e) {
-    return { preview: { tone: 'warning', label: 'Incomplete', text: `Fill in the fields to see which rule applies. ${(e as Error).message ?? ''}`.trim() } }
+    return {
+      preview: {
+        tone: 'warning',
+        label: 'Incomplete',
+        text: `Fill in the fields to see which rule applies. ${(e as Error).message ?? ''}`.trim()
+      }
+    }
   }
   const g = guardState(world)
   if (tx.path === 'module') {
     const enabled = world.safe.modules.some((m) => sameAddress(world, m, tx.module ?? ''))
-    if (!enabled) return { encoded, preview: { tone: 'danger', label: 'Refused by the Safe', text: `${nameOf(world, tx.module)} is not an enabled module.` } }
-    if (!g.mod) return { encoded, preview: { tone: 'warning', label: 'Not checked', text: 'No module guard: modules bypass every rule.' } }
+    if (!enabled)
+      return {
+        encoded,
+        preview: {
+          tone: 'danger',
+          label: 'Refused by the Safe',
+          text: `${nameOf(world, tx.module)} is not an enabled module.`
+        }
+      }
+    if (!g.mod)
+      return {
+        encoded,
+        preview: { tone: 'warning', label: 'Not checked', text: 'No module guard: modules bypass every rule.' }
+      }
   } else if (!g.tx) {
-    return { encoded, preview: { tone: 'warning', label: 'Not checked', text: 'No transaction guard: no rule is checked.' } }
+    return {
+      encoded,
+      preview: { tone: 'warning', label: 'Not checked', text: 'No transaction guard: no rule is checked.' }
+    }
   }
   try {
     return { encoded, preview: lookupPreview(world, tx, encoded) }
@@ -148,7 +200,17 @@ export function PreviewLine({ p, prefix = 'Checked by' }: { p: Preview; prefix?:
 // Pieces
 // ---------------------------------------------------------------------------------------------
 
-function ArgFields({ id, world, step, onChange }: { id: string; world: World; step: StepDraft; onChange: (s: StepDraft) => void }) {
+function ArgFields({
+  id,
+  world,
+  step,
+  onChange
+}: {
+  id: string
+  world: World
+  step: StepDraft
+  onChange: (s: StepDraft) => void
+}) {
   const info = fnByName(step.fn)
   if (!info || info.args.length === 0) return null
   const target = entity(world, step.to)
@@ -173,11 +235,19 @@ function ArgFields({ id, world, step, onChange }: { id: string; world: World; st
           case 'amount':
             return (
               <Field key={i} id={fid} label={a.label}>
-                <TextInput id={fid} value={v} inputMode="decimal" suffix={target.symbol ?? target.label} onChange={(x) => set(i, x)} />
+                <TextInput
+                  id={fid}
+                  value={v}
+                  inputMode="decimal"
+                  suffix={target.symbol ?? target.label}
+                  onChange={(x) => set(i, x)}
+                />
               </Field>
             )
           case 'bool':
-            return <Checkbox key={i} id={fid} checked={v === 'true'} onChange={(x) => set(i, String(x))} label={a.label} />
+            return (
+              <Checkbox key={i} id={fid} checked={v === 'true'} onChange={(x) => set(i, String(x))} label={a.label} />
+            )
           case 'bytes32':
             return (
               <Field key={i} id={fid} label={a.label}>
@@ -236,7 +306,12 @@ function StepFields({
           <AddressSelect id={`${id}-to`} world={world} value={step.to} onChange={changeTarget} />
         </Field>
         <Field id={`${id}-fn`} label="Action">
-          <Select id={`${id}-fn`} value={actionValue} options={options} onChange={(v) => (v === 'raw' ? null : onChange(withFn(step, v)))} />
+          <Select
+            id={`${id}-fn`}
+            value={actionValue}
+            options={options}
+            onChange={(v) => (v === 'raw' ? null : onChange(withFn(step, v)))}
+          />
         </Field>
       </div>
       {step.mode === 'fn' ? <ArgFields id={id} world={world} step={step} onChange={onChange} /> : null}
@@ -264,7 +339,13 @@ function StepFields({
           />
         </Field>
         <Field id={`${id}-value`} label="ETH sent along">
-          <TextInput id={`${id}-value`} inputMode="decimal" value={step.value} suffix="ETH" onChange={(value) => onChange({ ...step, value })} />
+          <TextInput
+            id={`${id}-value`}
+            inputMode="decimal"
+            value={step.value}
+            suffix="ETH"
+            onChange={(value) => onChange({ ...step, value })}
+          />
         </Field>
       </div>
       {step.operation === 'DELEGATECALL' && !(step.fn === 'multiSend' && target.kind === 'multisend') ? (
@@ -278,10 +359,23 @@ function StepFields({
   )
 }
 
-function ContextFields({ id, world, ctx, onChange, inBatch = false }: { id: string; world: World; ctx: ContextDraft; onChange: (c: ContextDraft) => void; inBatch?: boolean }) {
+function ContextFields({
+  id,
+  world,
+  ctx,
+  onChange,
+  inBatch = false
+}: {
+  id: string
+  world: World
+  ctx: ContextDraft
+  onChange: (c: ContextDraft) => void
+  inBatch?: boolean
+}) {
   const owners = ownerNames(world)
   const others = world.book.filter((e) => e.kind === 'person' && !owners.includes(e.name)).map((e) => e.name)
-  const toggle = (name: string, on: boolean) => onChange({ ...ctx, signers: on ? [...ctx.signers, name] : ctx.signers.filter((s) => s !== name) })
+  const toggle = (name: string, on: boolean) =>
+    onChange({ ...ctx, signers: on ? [...ctx.signers, name] : ctx.signers.filter((s) => s !== name) })
   return (
     <div className="context-fields">
       <Segmented
@@ -289,7 +383,13 @@ function ContextFields({ id, world, ctx, onChange, inBatch = false }: { id: stri
         label="Extra proof"
         size="sm"
         value={ctx.kind}
-        onChange={(kind) => onChange({ ...ctx, kind, signers: kind === 'ownerSignatures' && ctx.signers.length === 0 ? [...owners] : ctx.signers })}
+        onChange={(kind) =>
+          onChange({
+            ...ctx,
+            kind,
+            signers: kind === 'ownerSignatures' && ctx.signers.length === 0 ? [...owners] : ctx.signers
+          })
+        }
         options={[
           { value: 'none', label: 'None' },
           { value: 'cosignature', label: 'Co-signer' },
@@ -300,7 +400,12 @@ function ContextFields({ id, world, ctx, onChange, inBatch = false }: { id: stri
       {ctx.kind === 'cosignature' ? (
         <div className="field-pair">
           <Field id={`${id}-signer`} label="Signed by">
-            <AddressSelect id={`${id}-signer`} world={world} value={ctx.signer} onChange={(signer) => onChange({ ...ctx, signer })} />
+            <AddressSelect
+              id={`${id}-signer`}
+              world={world}
+              value={ctx.signer}
+              onChange={(signer) => onChange({ ...ctx, signer })}
+            />
           </Field>
           {inBatch ? (
             <Field label="What they signed">
@@ -322,7 +427,14 @@ function ContextFields({ id, world, ctx, onChange, inBatch = false }: { id: stri
       {ctx.kind === 'ownerSignatures' ? (
         <div className="check-grid" role="group" aria-label="Owners who signed again">
           {[...owners, ...others].map((o) => (
-            <Checkbox key={o} id={`${id}-sig-${o}`} checked={ctx.signers.includes(o)} onChange={(v) => toggle(o, v)} label={nameOf(world, o)} hint={owners.includes(o) ? undefined : 'not an owner'} />
+            <Checkbox
+              key={o}
+              id={`${id}-sig-${o}`}
+              checked={ctx.signers.includes(o)}
+              onChange={(v) => toggle(o, v)}
+              label={nameOf(world, o)}
+              hint={owners.includes(o) ? undefined : 'not an owner'}
+            />
           ))}
         </div>
       ) : null}
@@ -341,7 +453,12 @@ function ContextFields({ id, world, ctx, onChange, inBatch = false }: { id: stri
               ]}
             />
           </Field>
-          <Checkbox id={`${id}-valid`} checked={ctx.valid} onChange={(valid) => onChange({ ...ctx, valid })} label="Signature is valid" />
+          <Checkbox
+            id={`${id}-valid`}
+            checked={ctx.valid}
+            onChange={(valid) => onChange({ ...ctx, valid })}
+            label="Signature is valid"
+          />
         </div>
       ) : null}
     </div>
@@ -390,20 +507,44 @@ function BatchBuilder({
                     <Glyph kind="up" size={14} />
                     <span className="sr-only">Move step {i + 1} up</span>
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => move(i, 1)} disabled={i === steps.length - 1} title="Move down">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => move(i, 1)}
+                    disabled={i === steps.length - 1}
+                    title="Move down"
+                  >
                     <Glyph kind="down" size={14} />
                     <span className="sr-only">Move step {i + 1} down</span>
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => onChange(steps.filter((_, j) => j !== i))} title="Remove step">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => onChange(steps.filter((_, j) => j !== i))}
+                    title="Remove step"
+                  >
                     <Glyph kind="close" size={14} />
                     <span className="sr-only">Remove step {i + 1}</span>
                   </Button>
                 </span>
               </div>
-              <StepFields id={`${id}-${i}`} world={world} step={s} onChange={(x) => set(i, x)} changeSet={changeSet} inBatch>
+              <StepFields
+                id={`${id}-${i}`}
+                world={world}
+                step={s}
+                onChange={(x) => set(i, x)}
+                changeSet={changeSet}
+                inBatch
+              >
                 {ownerPath ? (
                   <Field label="Extra proof for this step">
-                    <ContextFields id={`${id}-${i}-ctx`} world={world} ctx={s.context} onChange={(context) => set(i, { ...s, context })} inBatch />
+                    <ContextFields
+                      id={`${id}-${i}-ctx`}
+                      world={world}
+                      ctx={s.context}
+                      onChange={(context) => set(i, { ...s, context })}
+                      inBatch
+                    />
                   </Field>
                 ) : null}
               </StepFields>
@@ -424,15 +565,30 @@ function BatchBuilder({
 // Batch notes: hardening and guard removal
 // ---------------------------------------------------------------------------------------------
 
-export const BATCH_RULE: RuleSpec = { target: 'MultiSend', selector: 'multiSend', operation: 'DELEGATECALL', policy: 'MultiSendPolicy' }
+export const BATCH_RULE: RuleSpec = {
+  target: 'MultiSend',
+  selector: 'multiSend',
+  operation: 'DELEGATECALL',
+  policy: 'MultiSendPolicy'
+}
 
 export function hasBatchRule(rules: RuleSpec[]): boolean {
-  return rules.some((r) => r.policy === 'MultiSendPolicy' && r.target === 'MultiSend' && (r.operation ?? 'CALL') === 'DELEGATECALL')
+  return rules.some(
+    (r) => r.policy === 'MultiSendPolicy' && r.target === 'MultiSend' && (r.operation ?? 'CALL') === 'DELEGATECALL'
+  )
 }
 
 const isFn = (s: StepDraft, ...fns: string[]) => s.mode === 'fn' && fns.includes(s.fn)
 
-function BatchNotes({ world, draft, onChange }: { world: World; draft: TxDraft; onChange: (steps: StepDraft[]) => void }) {
+function BatchNotes({
+  world,
+  draft,
+  onChange
+}: {
+  world: World
+  draft: TxDraft
+  onChange: (steps: StepDraft[]) => void
+}) {
   const g = guardState(world)
   const steps = draft.batch
   const configIdx = steps.findIndex((s) => isFn(s, 'configureImmediately'))
@@ -444,17 +600,24 @@ function BatchNotes({ world, draft, onChange }: { world: World; draft: TxDraft; 
   if (g.none && installIdx >= 0) {
     notes.push(
       <Callout key="harden" tone="info" title="Hardening in one batch">
-        One batch means there is never a moment with only one guard. No guard exists when it starts, so none of its steps is checked. The rules
-        step must come first: once either guard is set, setting rules immediately fails and undoes the whole batch.
+        One batch means there is never a moment with only one guard. No guard exists when it starts, so none of its
+        steps is checked. The rules step must come first: once either guard is set, setting rules immediately fails and
+        undoes the whole batch.
       </Callout>
     )
     if (configIdx > installIdx) {
       notes.push(
         <Callout key="order" tone="warning" title="Set the rules before the guards">
           <div className="stack-sm">
-            <span>Step {configIdx + 1} sets the rules after step {installIdx + 1} installs a guard. It will fail.</span>
             <span>
-              <Button id="batch-move-rules" size="sm" onClick={() => onChange([steps[configIdx], ...steps.filter((_, i) => i !== configIdx)])}>
+              Step {configIdx + 1} sets the rules after step {installIdx + 1} installs a guard. It will fail.
+            </span>
+            <span>
+              <Button
+                id="batch-move-rules"
+                size="sm"
+                onClick={() => onChange([steps[configIdx], ...steps.filter((_, i) => i !== configIdx)])}
+              >
                 Move the rules step first
               </Button>
             </span>
@@ -471,7 +634,13 @@ function BatchNotes({ world, draft, onChange }: { world: World; draft: TxDraft; 
               <Button
                 id="batch-add-rule"
                 size="sm"
-                onClick={() => onChange(steps.map((s, i) => (i === configIdx ? { ...s, configurations: [...s.configurations, { ...BATCH_RULE }] } : s)))}
+                onClick={() =>
+                  onChange(
+                    steps.map((s, i) =>
+                      i === configIdx ? { ...s, configurations: [...s.configurations, { ...BATCH_RULE }] } : s
+                    )
+                  )
+                }
               >
                 Add the Batch Checker rule to step {configIdx + 1}
               </Button>
@@ -484,15 +653,16 @@ function BatchNotes({ world, draft, onChange }: { world: World; draft: TxDraft; 
   if (!g.none && removes) {
     notes.push(
       <Callout key="remove" tone="info" title="Removing the guards">
-        The guard checks this batch before any step runs, against the rules as they are now. Rules that allow removing the guards must be
-        applied in an earlier transaction.
+        The guard checks this batch before any step runs, against the rules as they are now. Rules that allow removing
+        the guards must be applied in an earlier transaction.
       </Callout>
     )
   }
   if (!g.none && applyIdx >= 0 && applyIdx < steps.length - 1) {
     notes.push(
       <Callout key="apply" tone="warning" title="Later steps use the old rules">
-        Every step is checked before the batch runs, so the steps after step {applyIdx + 1} are checked against the rules from before it.
+        Every step is checked before the batch runs, so the steps after step {applyIdx + 1} are checked against the
+        rules from before it.
       </Callout>
     )
   }
@@ -529,10 +699,12 @@ export function TxBuilder({
   const set = (patch: Partial<TxDraft>) => onChange({ ...draft, ...patch, label: undefined })
   const setStep = (s: StepDraft) => {
     let next: TxDraft = { ...draft, ...s, label: undefined }
-    if (s.fn === 'multiSend' && s.mode === 'fn' && draft.batch.length === 0) next.batch = [emptyStep(), { ...emptyStep(), args: ['Erin', '50'] }]
+    if (s.fn === 'multiSend' && s.mode === 'fn' && draft.batch.length === 0)
+      next.batch = [emptyStep(), { ...emptyStep(), args: ['Erin', '50'] }]
     onChange(next)
   }
-  const toggleSigner = (name: string, on: boolean) => set({ signers: on ? [...draft.signers, name] : draft.signers.filter((s) => s !== name) })
+  const toggleSigner = (name: string, on: boolean) =>
+    set({ signers: on ? [...draft.signers, name] : draft.signers.filter((s) => s !== name) })
   const isConfig = draft.mode === 'fn' && CONFIG_FNS.includes(draft.fn)
   const roots = Object.keys(world.roots)
   const rootSource = draft.rootSource === 'own' || roots.includes(draft.rootSource) ? draft.rootSource : 'draft'
@@ -551,7 +723,13 @@ export function TxBuilder({
           <p className="field-label">Examples</p>
           <div className="example-chips">
             {examples.map((x) => (
-              <button key={x.id} id={`example-${x.id}`} type="button" className="example-chip" onClick={() => onExample(x.id)}>
+              <button
+                key={x.id}
+                id={`example-${x.id}`}
+                type="button"
+                className="example-chip"
+                onClick={() => onExample(x.id)}
+              >
                 {x.label}
               </button>
             ))}
@@ -575,10 +753,18 @@ export function TxBuilder({
           <>
             <div className="check-grid" role="group" aria-label="Signers">
               {owners.map((o) => (
-                <Checkbox key={o} id={`tx-signer-${o}`} checked={draft.signers.includes(o)} onChange={(v) => toggleSigner(o, v)} label={nameOf(world, o)} />
+                <Checkbox
+                  key={o}
+                  id={`tx-signer-${o}`}
+                  checked={draft.signers.includes(o)}
+                  onChange={(v) => toggleSigner(o, v)}
+                  label={nameOf(world, o)}
+                />
               ))}
             </div>
-            <p className={`small ${draft.signers.filter((s) => owners.includes(s)).length >= world.safe.threshold ? 'muted' : 'text-warning'}`}>
+            <p
+              className={`small ${draft.signers.filter((s) => owners.includes(s)).length >= world.safe.threshold ? 'muted' : 'text-warning'}`}
+            >
               {world.safe.threshold} of {owners.length} needed · {plural(draft.signers.length, 'signature')} selected
             </p>
             {nonOwners.length > 0 ? (
@@ -586,19 +772,36 @@ export function TxBuilder({
                 <summary>Add a signature from someone who is not an owner</summary>
                 <div className="check-grid">
                   {nonOwners.map((o) => (
-                    <Checkbox key={o} id={`tx-signer-${o}`} checked={draft.signers.includes(o)} onChange={(v) => toggleSigner(o, v)} label={nameOf(world, o)} />
+                    <Checkbox
+                      key={o}
+                      id={`tx-signer-${o}`}
+                      checked={draft.signers.includes(o)}
+                      onChange={(v) => toggleSigner(o, v)}
+                      label={nameOf(world, o)}
+                    />
                   ))}
                 </div>
               </details>
             ) : null}
           </>
         ) : (
-          <Field id="tx-module" label="Module" hint={modules.some((m) => m === draft.module) ? 'Executes without owner signatures.' : 'This module is not enabled. The Safe will refuse it.'}>
+          <Field
+            id="tx-module"
+            label="Module"
+            hint={
+              modules.some((m) => m === draft.module)
+                ? 'Executes without owner signatures.'
+                : 'This module is not enabled. The Safe will refuse it.'
+            }
+          >
             <Select
               id="tx-module"
               value={draft.module}
               onChange={(module) => set({ module })}
-              options={moduleOptions.map((m) => ({ value: m.name, label: `${m.label || m.name}${modules.includes(m.name) ? '' : ' (not enabled)'}` }))}
+              options={moduleOptions.map((m) => ({
+                value: m.name,
+                label: `${m.label || m.name}${modules.includes(m.name) ? '' : ' (not enabled)'}`
+              }))}
             />
           </Field>
         )}
@@ -613,10 +816,19 @@ export function TxBuilder({
               <Select
                 id="tx-root"
                 value={rootSource}
-                onChange={(v) => set(v === 'own' && draft.rootSource !== 'own' ? { rootSource: v, configurations: structuredClone(spec.call?.configurations ?? []) } : { rootSource: v })}
+                onChange={(v) =>
+                  set(
+                    v === 'own' && draft.rootSource !== 'own'
+                      ? { rootSource: v, configurations: structuredClone(spec.call?.configurations ?? []) }
+                      : { rootSource: v }
+                  )
+                }
                 options={[
                   { value: 'draft', label: `The change set you are drafting (${plural(changeSet.length, 'rule')})` },
-                  ...roots.map((r, i) => ({ value: r, label: `Proposed change set ${i + 1} (${plural(world.roots[r].configurations.length, 'rule')})` })),
+                  ...roots.map((r, i) => ({
+                    value: r,
+                    label: `Proposed change set ${i + 1} (${plural(world.roots[r].configurations.length, 'rule')})`
+                  })),
                   { value: 'own', label: 'Rules listed here' }
                 ]}
               />
@@ -631,14 +843,25 @@ export function TxBuilder({
                 onChange={(configurations) => set({ configurations })}
               />
             ) : (
-              <RuleSpecList world={world} rules={spec.call?.configurations ?? []} empty="No rules yet. Draft them in Your Safe under Rules." />
+              <RuleSpecList
+                world={world}
+                rules={spec.call?.configurations ?? []}
+                empty="No rules yet. Draft them in Your Safe under Rules."
+              />
             )}
           </div>
         ) : null}
         {draft.mode === 'fn' && draft.fn === 'multiSend' ? (
           <>
             <BatchNotes world={world} draft={draft} onChange={(batch) => set({ batch })} />
-            <BatchBuilder id="batch" world={world} steps={draft.batch} onChange={(batch) => set({ batch })} ownerPath={draft.path === 'owner'} changeSet={changeSet} />
+            <BatchBuilder
+              id="batch"
+              world={world}
+              steps={draft.batch}
+              onChange={(batch) => set({ batch })}
+              ownerPath={draft.path === 'owner'}
+              changeSet={changeSet}
+            />
           </>
         ) : null}
       </fieldset>
@@ -651,7 +874,9 @@ export function TxBuilder({
             <ContextFields id="tx-ctx" world={world} ctx={draft.context} onChange={(context) => set({ context })} />
           </>
         ) : (
-          <p className="muted small">Module transactions carry no extra proof. Co-signer, extra signature and Safenet policies refuse them.</p>
+          <p className="muted small">
+            Module transactions carry no extra proof. Co-signer, extra signature and Safenet policies refuse them.
+          </p>
         )}
       </fieldset>
 
@@ -661,20 +886,39 @@ export function TxBuilder({
           <Checkbox
             id="tx-raw-on"
             checked={draft.mode === 'raw'}
-            onChange={(on) => set(on ? { mode: 'raw', data: draft.data || encoded?.data || '0x' } : { mode: draft.fn ? 'fn' : 'none' })}
+            onChange={(on) =>
+              set(on ? { mode: 'raw', data: draft.data || encoded?.data || '0x' } : { mode: draft.fn ? 'fn' : 'none' })
+            }
             label="Send raw calldata instead of the action"
           />
           {draft.mode === 'raw' ? (
             <Field id="tx-raw" label="Calldata (hex)">
-              <textarea id="tx-raw" className="input is-mono textarea" spellCheck={false} value={draft.data} onChange={(e) => set({ data: e.target.value })} rows={3} />
+              <textarea
+                id="tx-raw"
+                className="input is-mono textarea"
+                spellCheck={false}
+                value={draft.data}
+                onChange={(e) => set({ data: e.target.value })}
+                rows={3}
+              />
             </Field>
           ) : null}
           <div className="field-pair">
             <Field id="tx-safetxgas" label="safeTxGas" hint="The guard requires 0.">
-              <TextInput id="tx-safetxgas" inputMode="numeric" value={draft.safeTxGas} onChange={(safeTxGas) => set({ safeTxGas })} />
+              <TextInput
+                id="tx-safetxgas"
+                inputMode="numeric"
+                value={draft.safeTxGas}
+                onChange={(safeTxGas) => set({ safeTxGas })}
+              />
             </Field>
             <Field id="tx-gasprice" label="gasPrice" hint="The guard requires 0.">
-              <TextInput id="tx-gasprice" inputMode="numeric" value={draft.gasPrice} onChange={(gasPrice) => set({ gasPrice })} />
+              <TextInput
+                id="tx-gasprice"
+                inputMode="numeric"
+                value={draft.gasPrice}
+                onChange={(gasPrice) => set({ gasPrice })}
+              />
             </Field>
           </div>
         </div>

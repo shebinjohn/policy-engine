@@ -13,7 +13,14 @@ export interface ContextDraft {
   valid: boolean
 }
 
-export const EMPTY_CONTEXT: ContextDraft = { kind: 'none', signer: 'CoSigner', over: 'self', signers: [], key: 'trusted', valid: true }
+export const EMPTY_CONTEXT: ContextDraft = {
+  kind: 'none',
+  signer: 'CoSigner',
+  over: 'self',
+  signers: [],
+  key: 'trusted',
+  valid: true
+}
 
 export type ActionMode = 'fn' | 'none' | 'raw'
 
@@ -46,7 +53,17 @@ export interface TxDraft extends StepDraft {
 }
 
 export function emptyStep(to = 'USDC'): StepDraft {
-  return { to, mode: 'fn', fn: 'transfer', args: ['Dave', '100'], value: '0', operation: 'CALL', data: '', context: { ...EMPTY_CONTEXT }, configurations: [] }
+  return {
+    to,
+    mode: 'fn',
+    fn: 'transfer',
+    args: ['Dave', '100'],
+    value: '0',
+    operation: 'CALL',
+    data: '',
+    context: { ...EMPTY_CONTEXT },
+    configurations: []
+  }
 }
 
 export function contextFromSpec(c: ContextSpec | undefined): ContextDraft {
@@ -146,7 +163,7 @@ export function toTxSpec(world: World, d: TxDraft, changeSet: RuleSpec[]): TxSpe
     if (CONFIG_FNS.includes(d.fn)) {
       tx.call.args = []
       const fromRoot = world.roots[d.rootSource]?.configurations
-      tx.call.configurations = d.rootSource === 'own' ? d.configurations : fromRoot ?? changeSet
+      tx.call.configurations = d.rootSource === 'own' ? d.configurations : (fromRoot ?? changeSet)
     }
   }
   if (d.safeTxGas.trim() && d.safeTxGas.trim() !== '0') tx.safeTxGas = d.safeTxGas.trim()

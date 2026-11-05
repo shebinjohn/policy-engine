@@ -4,11 +4,12 @@
   "order": 5,
   "title": "Deny Beats the Catch-All",
   "summary": "A catch-all allows almost everything. An Always Deny rule on one function still shuts that door.",
-  "lesson": "An exact rule always wins over the catch-all. Give it the Always Deny policy to close one door, and remember that a permissive catch-all covers everything else, the Safe settings included.",
+  "lesson": "An exact rule always wins over the catch-all. Give it the Always Deny policy to close one door, and remember that a permissive catch-all covers everything else: the Safe settings, and even burning ETH to the zero address.",
   "readme": "policy-engine",
   "setup": {
     "balances": {
-      "USDC": "10000"
+      "USDC": "10000",
+      "ETH": "5"
     },
     "rules": [
       {
@@ -102,6 +103,25 @@
         "ok": true
       },
       "note": "Careful: the catch-all also covers the Safe settings. Nothing stops two owners from adding Mallory."
+    },
+    {
+      "do": "tx",
+      "label": "Send 1 ETH to the zero address",
+      "tx": {
+        "to": "Zero",
+        "value": "1"
+      },
+      "expect": {
+        "ok": true
+      },
+      "expectState": {
+        "balances": {
+          "Safe": {
+            "ETH": "4"
+          }
+        }
+      },
+      "note": "The zero address has no rule of its own, and a plain transfer to it has the same key as the catch-all rule. So the permissive catch-all also lets the Safe burn ETH by sending it to the zero address."
     }
   ]
 }
