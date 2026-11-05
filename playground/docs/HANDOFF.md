@@ -7,8 +7,11 @@ Policy Engine contracts, and extend it. Read it fully before changing anything.
 ## 1. What the playground is
 
 An interactive web app that simulates a Safe protected by the Safe{Policies} Policy Engine
-(`SafePolicyGuard` plus its policies). People set up a Safe, fire a transaction, and see in plain
-language whether it passes and why, step by step. It has three modes:
+(`SafePolicyGuard` plus its policies). It has two layers. The **simple layer** (Learn, Ask, Play,
+Deep dives; `src/ui/simple/`) is the default and is designed for non-developers; its brief,
+including the words it must never show, is `docs/research/SIMPLE_LAYER.md`. Its content is the
+explainer and eight big ideas in `ideas/*.json` (same shape as scenarios, so they are replayed on
+chain too). The **Advanced** layer is the full simulator for engineers, with these modes:
 
 - **Sandbox**: free play with a simulated Safe, its guards, modules, balances and rule table.
 - **Scenarios**: a guided learning path; each scenario teaches one behaviour of the engine.

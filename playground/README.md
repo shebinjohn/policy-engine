@@ -5,11 +5,18 @@ Policy Guard, fire any transaction and see, step by step and in plain language, 
 and why. Guided scenarios walk through every behaviour in the README, and challenges turn the
 gotchas into puzzles.
 
-- **Sandbox**: a simulated Safe with guards, modules, balances and rules; build any transaction,
-  batch or module call, and change the rules through the waiting period.
-- **Scenarios**: 23 short lessons in six chapters.
-- **Challenges**: 10 levels; edit the rules until every test gets the verdict it wants.
-- **Engineer view**: selectors, calldata and the exact Solidity errors.
+A simple layer comes first, for people who know Safe but are not developers:
+
+- **Learn**: how the Policy Engine decides, in four sentences and a rulebook picture, then eight
+  big ideas with transaction cards to guess and reveal.
+- **Ask**: "Will this pass?" as a plain sentence, answered with a verdict, one reason and the rule
+  that decided. The rulebook is editable.
+- **Play**: 10 challenges; edit the rulebook until every test card gets the verdict it should.
+- **Deep dives**: 24 detailed scenarios.
+
+**Advanced**, behind it, is the full simulator for engineers: every Safe setting, batches, module
+calls, the waiting period, the complete decision path, sharp-edge warnings and an Engineer view
+with selectors, calldata and the exact Solidity errors.
 
 The simulator is checked against the real contracts: every scenario and challenge solution is
 replayed on Safe 1.5.0 with the `SafePolicyGuard` and its policies in Hardhat.
