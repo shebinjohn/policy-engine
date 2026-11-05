@@ -9,7 +9,7 @@
   "explain": [
     "A module is an add-on the Safe trusts to act without the owners, like an Allowance Module that pays bills.",
     "The guard checks module transactions too, against the same rulebook. Some policies tell owners and modules apart.",
-    "The Module Allowlist accepts only the modules it lists. The Co-Signer and Extra Owner Signatures accept only the owners."
+    "The Module Allowlist accepts only the modules it lists. The Co-Signer and More Owners Sign accept only the owners."
   ],
   "takeaway": "Modules follow the same rulebook, and some policies accept only modules or only owners.",
   "deepDives": [

@@ -8,7 +8,7 @@
   "oneLiner": "A policy decides by looking closer: who receives, how often, and who agreed.",
   "explain": [
     "The rule picks the policy. The policy then checks the details that matter for that action.",
-    "A Recipient Allowlist checks who receives and how many times. Extra Owner Signatures asks more owners to sign than usual.",
+    "A Recipient Allowlist checks who receives and how many times. More Owners Sign asks more owners to sign than usual.",
     "Other policies ask for a co-signer or a specific module. Each policy label says what it checks."
   ],
   "takeaway": "The rule finds the policy, and the policy checks who receives, how often and who agreed.",

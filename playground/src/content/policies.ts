@@ -155,7 +155,7 @@ export const POLICIES: Record<PolicyName, PolicyInfo> = {
   },
   IncreasedThresholdPolicy: {
     name: 'IncreasedThresholdPolicy',
-    label: 'Extra Owner Signatures',
+    label: 'More Owners Sign',
     oneLiner: "Needs more owner signatures than the Safe's threshold.",
     plain:
       'Asks for every owner except a set number who may be absent, and never fewer than the threshold plus one. The extra signatures travel with the transaction and work once. Use it to put sensitive calls behind more owners.',

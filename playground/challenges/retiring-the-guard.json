@@ -211,7 +211,7 @@
   ],
   "hints": [
     "Always Allow on removing a guard, or on the batch, lets the enabled module do it too. You need a policy that only owners can satisfy.",
-    "Extra Owner Signatures asks for more owners than the threshold, and it refuses every module transaction.",
+    "More Owners Sign asks for more owners than the threshold, and it refuses every module transaction.",
     "IncreasedThresholdPolicy on setGuard and on setModuleGuard for the Safe, plus MultiSendPolicy so both can go in one batch."
   ],
   "solution": [
@@ -238,5 +238,5 @@
       }
     }
   ],
-  "explain": "A module carries no signatures, so a policy built on signatures refuses it outright. That makes Extra Owner Signatures an owner-only lock: every owner must sign to remove a guard, and no module ever can. The batch needs the Batch Checker, so each step still meets that lock. Always Allow on the batch would let the module remove both guards in one go. In a live Safe these rules arrive through the waiting period, and the removal follows in a later transaction."
+  "explain": "A module carries no signatures, so a policy built on signatures refuses it outright. That makes More Owners Sign an owner-only lock: every owner must sign to remove a guard, and no module ever can. The batch needs the Batch Checker, so each step still meets that lock. Always Allow on the batch would let the module remove both guards in one go. In a live Safe these rules arrive through the waiting period, and the removal follows in a later transaction."
 }
