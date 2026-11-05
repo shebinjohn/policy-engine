@@ -4,7 +4,7 @@
   "order": 8,
   "title": "Approvals and Revokes",
   "summary": "A spender allowlist approves Dave once, refuses Mallory, and always lets a revoke through.",
-  "lesson": "ERC20ApprovePolicy limits who may be approved to spend the Safe's tokens. Revoking, an approval of zero, is always allowed, so cleaning up never waits for a rule change.",
+  "lesson": "A spender allowlist limits who may be approved to spend the Safe's tokens. Revoking, an approval of zero, is always allowed, so cleaning up never waits for a rule change.",
   "readme": "policies",
   "setup": {
     "balances": {

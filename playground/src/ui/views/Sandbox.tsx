@@ -2,7 +2,8 @@
 import { useMemo, useState } from 'react'
 import type { RuleSpec, SimResult, TableEntry, TxSpec, World } from '../../engine/types.ts'
 import { engine } from '../sources.ts'
-import { ruleSpecFromEntry, sameRuleKey } from '../lib/describe.ts'
+import { describeCall, ruleSpecFromEntry, sameRuleKey } from '../lib/describe.ts'
+import { shortReason } from '../lib/content.ts'
 import { fromTxSpec, toTxSpec } from '../lib/draft.ts'
 import type { TxDraft } from '../lib/draft.ts'
 import { plural } from '../lib/format.ts'
@@ -24,6 +25,7 @@ import {
   Section,
   guardState
 } from '../components/Safe.tsx'
+import type { LogEntry } from '../components/Safe.tsx'
 import { TxBuilder } from '../components/TxBuilder.tsx'
 import { Button, Callout, Glyph, Pill, Segmented, Select } from '../components/ui.tsx'
 
@@ -42,6 +44,11 @@ interface State {
   run: Run | null
   setupError?: string
   example: boolean
+  log: LogEntry[]
+}
+
+function logEntry(world: World, tx: TxSpec, result: SimResult): LogEntry {
+  return { at: world.now, label: tx.label ?? describeCall(world, tx), ok: result.ok, why: result.ok ? '' : shortReason(result.error) }
 }
 
 function boot(preset: Preset): State {
@@ -50,30 +57,47 @@ function boot(preset: Preset): State {
     world = engine.createWorld(preset.setup)
   } catch (e) {
     world = engine.createWorld({})
-    return { preset, world, draft: fromTxSpec(world, preset.tx), changeSet: [], run: null, setupError: (e as Error).message, example: false }
+    return { preset, world, draft: fromTxSpec(world, preset.tx), changeSet: [], run: null, setupError: (e as Error).message, example: false, log: [] }
   }
   const draft = fromTxSpec(world, preset.tx)
   const tx = toTxSpec(world, draft, [])
   let run: Run | null = null
+  const log: LogEntry[] = []
   try {
     const result = engine.simulate(world, tx)
     run = { result, tx, before: world, n: 0 }
+    log.push(logEntry(world, tx, result))
     world = result.world
   } catch {
     run = null
   }
-  return { preset, world, draft, changeSet: [], run, example: preset.id === 'example' }
+  return { preset, world, draft, changeSet: [], run, example: preset.id === 'example', log }
 }
 
 type Tab = 'safe' | 'build' | 'result'
 
-export function Sandbox({ loadTx }: { loadTx?: TxSpec | null }) {
-  const [state, setState] = useState<State>(() => {
-    const s = boot(PRESETS[0])
-    if (loadTx) s.draft = fromTxSpec(s.world, loadTx)
-    return s
-  })
-  const [tab, setTab] = useState<Tab>('result')
+/** A starting point handed over from a scenario step: its world and transaction. */
+export interface Seed {
+  id: number
+  world: World
+  tx: TxSpec
+  from: string
+}
+
+function fromSeed(seed: Seed): State {
+  const preset: Preset = {
+    id: 'seed',
+    label: `From the scenario ${seed.from}`,
+    blurb: 'The Safe as it was before this step, with its transaction ready to run. Change anything and run it.',
+    setup: {},
+    tx: seed.tx
+  }
+  return { preset, world: seed.world, draft: fromTxSpec(seed.world, seed.tx), changeSet: [], run: null, example: false, log: [] }
+}
+
+export function Sandbox({ seed }: { seed?: Seed | null }) {
+  const [state, setState] = useState<State>(() => (seed ? fromSeed(seed) : boot(PRESETS[0])))
+  const [tab, setTab] = useState<Tab>(seed ? 'build' : 'result')
   const [editor, setEditor] = useState<{ initial?: RuleSpec; title: string } | null>(null)
   const [resetChoice, setResetChoice] = useState(PRESETS[0].id)
   const [confirmReset, setConfirmReset] = useState(false)
@@ -92,6 +116,7 @@ export function Sandbox({ loadTx }: { loadTx?: TxSpec | null }) {
       ...s,
       world: result.world,
       run: { result, tx, before: s.world, n: (s.run?.n ?? 0) + 1 },
+      log: [...s.log, logEntry(s.world, tx, result)],
       example: false,
       setupError: undefined,
       ...(after ? after(result) : {})
@@ -209,7 +234,7 @@ export function Sandbox({ loadTx }: { loadTx?: TxSpec | null }) {
         <Clock world={world} onAdvance={(s) => setState((st) => ({ ...st, world: engine.advanceTime(st.world, s) }))} />
       </Section>
       <Section title="Activity" id="sec-activity">
-        <Activity world={world} />
+        <Activity log={state.log} />
       </Section>
       <Section title="Reset Safe" id="sec-reset">
         <div className="reset">

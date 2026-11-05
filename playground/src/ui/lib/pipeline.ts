@@ -31,6 +31,12 @@ export interface Stage {
   policy?: PolicyName
 }
 
+/** commit and rollback close the run: they belong under the outcome node, not to a stage. */
+export function splitEnd(trace: TraceEvent[]): { main: TraceEvent[]; end: TraceEvent[] } {
+  const isEnd = (e: TraceEvent) => e.depth === 0 && (e.id === 'commit' || e.id === 'rollback')
+  return { main: trace.filter((e) => !isEnd(e)), end: trace.filter(isEnd) }
+}
+
 export function stageOf(id: string): StageKey {
   if (id.startsWith('safe.') || id.startsWith('module.')) return 'auth'
   if (id.startsWith('engine.lookup')) return 'lookup'

@@ -3,8 +3,8 @@
   "chapter": "changing-the-rules",
   "order": 20,
   "title": "Requests Expire",
-  "summary": "A requested change that is not applied within seven days of maturing can no longer be applied.",
-  "lesson": "A requested change can be applied from one hour after the request until seven days later. After that it is dead, so an old request cannot be sprung on the team. Ask again to start over.",
+  "summary": "A change that is not applied within seven days of becoming ready can no longer be applied.",
+  "lesson": "A requested change can be applied from one hour after the request, for seven days. After that it is dead, so an old request cannot be sprung on the team. Ask again to start over.",
   "readme": "setup-with-safe",
   "setup": {
     "rules": []
@@ -58,7 +58,7 @@
         "by": "execution",
         "error": "RootConfigurationExpired"
       },
-      "note": "The change matured after one hour and stayed open for seven days. That window has closed."
+      "note": "The change became ready after one hour and stayed open for seven days. That window has closed."
     },
     {
       "do": "tx",

@@ -3,8 +3,8 @@
   "chapter": "rules-and-catch-all",
   "order": 5,
   "title": "Deny Beats the Catch-All",
-  "summary": "A catch-all allows almost everything. DenyPolicy on one exact rule still shuts that door.",
-  "lesson": "An exact rule always wins over the catch-all. Put DenyPolicy on it to close one door, and remember that a permissive catch-all covers everything else, the Safe settings included.",
+  "summary": "A catch-all allows almost everything. An Always Deny rule on one function still shuts that door.",
+  "lesson": "An exact rule always wins over the catch-all. Give it the Always Deny policy to close one door, and remember that a permissive catch-all covers everything else, the Safe settings included.",
   "readme": "policy-engine",
   "setup": {
     "balances": {
@@ -83,7 +83,7 @@
         "error": "AccessDenied",
         "policy": "DenyPolicy"
       },
-      "note": "DenyPolicy does not read the call. Even setting an approval to zero is refused."
+      "note": "Always Deny does not read the call. Even setting an approval to zero is refused."
     },
     {
       "do": "tx",

@@ -3,8 +3,8 @@
   "chapter": "policies-at-work",
   "order": 9,
   "title": "Plain ETH and Selector Zero",
-  "summary": "NativeTransferPolicy tells a plain ETH transfer from calldata of four zero bytes. AllowPolicy cannot.",
-  "lesson": "Empty calldata and calldata of four zero bytes land on the same rule. Only NativeTransferPolicy checks that the calldata is really empty, so use it for plain ETH transfers.",
+  "summary": "The plain ETH policy tells a real ETH transfer from calldata of four zero bytes. Always Allow cannot.",
+  "lesson": "Empty calldata and calldata of four zero bytes land on the same rule. Only the plain ETH policy checks that the calldata is really empty, so use it for ETH transfers.",
   "readme": "where-the-check-and-the-execution-can-diverge",
   "setup": {
     "balances": {
@@ -54,7 +54,7 @@
           "error": "CalldataNotPermitted"
         }
       },
-      "note": "Four zero bytes read as selector zero, the same key as no calldata at all. NativeTransferPolicy looks closer and sees calldata."
+      "note": "Four zero bytes read as selector zero, the same key as no calldata at all. The plain ETH policy looks closer and sees calldata."
     },
     {
       "do": "tx",
@@ -67,7 +67,7 @@
       "expect": {
         "ok": true
       },
-      "note": "AllowPolicy does not look at calldata. Erin is a person, so nothing runs, but sent to a contract this call would reach the contract's fallback code."
+      "note": "Always Allow does not look at calldata. Erin is a person, so nothing runs, but sent to a contract this call would reach the contract's fallback code."
     },
     {
       "do": "tx",

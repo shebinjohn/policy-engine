@@ -1,11 +1,11 @@
 /** "Your Safe": owners, guards, modules, balances, rules, change sets, clock, activity. */
 import type { ReactNode } from 'react'
 import type { RuleSpec, TableEntry, World } from '../../engine/types.ts'
-import { describeRuleSpec, describeTableEntry, keyOf, nameOf, ownerNames, moduleNames } from '../lib/describe.ts'
+import { describeRuleSpec, describeTableEntry, nameOf, ownerNames, moduleNames } from '../lib/describe.ts'
 import type { RuleWords } from '../lib/describe.ts'
 import { formatDuration, formatShortTime, formatTime, plural, shortAddress } from '../lib/format.ts'
 import { balanceRows } from './Result.tsx'
-import { Button, Callout, Glyph, Pill, Status, Tech, useEngineer } from './ui.tsx'
+import { Button, Callout, Glyph, Status, Tech, useEngineer } from './ui.tsx'
 
 export function Section({ title, aside, children, id }: { title: ReactNode; aside?: ReactNode; children: ReactNode; id?: string }) {
   return (
@@ -159,12 +159,13 @@ export function BalancesSection({ world }: { world: World }) {
 export function RuleRow({ w, access, actions, note, marker }: { w: RuleWords; access?: string; actions?: ReactNode; note?: string; marker?: ReactNode }) {
   return (
     <li className={`rule${w.isFallback ? ' is-fallback' : ''}${w.removes ? ' is-removal' : ''}`}>
-      <div className="rule-main">
+      <div className="rule-top">
         <p className="rule-when">
           {w.isFallback ? (
             <>
               <span className="rule-target">Catch-all</span>
-              <span className="muted"> for every {w.op}</span>
+              <span className="rule-action">every call without its own rule</span>
+              <span className="op-chip">{w.op}</span>
             </>
           ) : (
             <>
@@ -174,22 +175,22 @@ export function RuleRow({ w, access, actions, note, marker }: { w: RuleWords; ac
             </>
           )}
         </p>
-        <p className="rule-then">
-          <Glyph kind="arrow-right" size={14} />
-          {w.removes ? (
-            <span>Remove this rule</span>
-          ) : (
-            <span>
-              <strong>{w.policy}</strong>
-              {w.config ? <span className="muted">: {w.config}</span> : null}
-            </span>
-          )}
-          {marker}
-        </p>
-        {note ? <p className="muted small">{note}</p> : null}
-        {access ? <Tech block>{access}</Tech> : null}
+        {actions ? <div className="rule-actions">{actions}</div> : null}
       </div>
-      {actions ? <div className="rule-actions">{actions}</div> : null}
+      <p className="rule-then">
+        <Glyph kind="arrow-right" size={14} />
+        {w.removes ? (
+          <span>Remove this rule</span>
+        ) : (
+          <span>
+            <strong>{w.policy}</strong>
+            {w.config ? <span className="muted">: {w.config}</span> : null}
+            {marker}
+          </span>
+        )}
+      </p>
+      {note ? <p className="muted small rule-note">{note}</p> : null}
+      {access ? <Tech block>{access}</Tech> : null}
     </li>
   )
 }
@@ -254,7 +255,7 @@ export function RuleTable({
         <p className="muted small">No specific rules.</p>
       )}
       <p className="rule-group-label">
-        Catch-all rules <span className="muted">· used when no rule above matches</span>
+        Catch-all <span className="muted">· decides calls that have no rule above</span>
       </p>
       {fallback.length > 0 ? (
         <ul className="rule-list" aria-label="Catch-all rules">
@@ -394,8 +395,15 @@ export function Clock({ world, onAdvance }: { world: World; onAdvance?: (s: numb
   )
 }
 
-export function Activity({ world }: { world: World }) {
-  const items = [...world.history].reverse().slice(0, 12)
+export interface LogEntry {
+  at: number
+  label: string
+  ok: boolean
+  why: string
+}
+
+export function Activity({ log }: { log: LogEntry[] }) {
+  const items = [...log].reverse().slice(0, 12)
   if (items.length === 0) return <p className="muted small">No transactions yet.</p>
   return (
     <ol className="activity">
@@ -406,7 +414,7 @@ export function Activity({ world }: { world: World }) {
             <p className="small">{h.label}</p>
             <p className="muted small tnum">
               {formatShortTime(h.at)}
-              {h.summary ? ` · ${h.summary}` : ''}
+              {h.why ? ` · ${h.why}` : ''}
             </p>
           </div>
         </li>
@@ -430,4 +438,3 @@ export function SafeHeader({ world, badge }: { world: World; badge?: ReactNode }
   )
 }
 
-export { keyOf, Pill }

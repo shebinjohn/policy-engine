@@ -4,7 +4,7 @@
   "order": 17,
   "title": "Half a Guard",
   "summary": "With only the transaction guard installed, a module ignores every rule and then removes the guard.",
-  "lesson": "The Policy Guard must be installed twice: as the transaction guard and as the module guard. With only one, any enabled module can do anything, including switching the guard off without a wait.",
+  "lesson": "The Policy Guard must be installed twice: as the transaction guard and as the module guard. With only the transaction guard, any enabled module can do anything, including switching the guard off without a wait. With only the module guard, owner transactions go unchecked.",
   "readme": "setup-with-safe",
   "setup": {
     "modules": [

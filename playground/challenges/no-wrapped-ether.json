@@ -2,7 +2,7 @@
   "id": "no-wrapped-ether",
   "level": 4,
   "title": "No Wrapped Ether",
-  "brief": "Compliance says the treasury must never hold WETH. The Safe runs on a permissive catch-all, so the team put DenyPolicy on deposit for WETH. The auditors still found WETH in the Safe. Stop all wrapping, and keep paying Dave in ETH and Erin in USDC.",
+  "brief": "Compliance says the treasury must never hold WETH. The Safe runs on a permissive catch-all, so the team denied deposit on WETH. The auditors still found WETH in the Safe. Stop all wrapping, and keep paying Dave in ETH and Erin in USDC.",
   "setup": {
     "balances": {
       "ETH": "10",
@@ -77,6 +77,15 @@
         "to": "WETH",
         "value": "1",
         "data": "0x12345678"
+      },
+      "want": "block"
+    },
+    {
+      "label": "Send 1 ETH to WETH calling another made-up function",
+      "tx": {
+        "to": "WETH",
+        "value": "1",
+        "data": "0xdeadbeef"
       },
       "want": "block"
     }

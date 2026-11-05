@@ -33,12 +33,16 @@ export function reverted(message?: string): never {
 export function toSimError(
   fault: Fault,
   by: ErrorSource,
-  messageFor: (fault: Fault, by: ErrorSource) => string
+  messageFor: (fault: Fault, by: ErrorSource, owner?: PolicyName) => string,
+  owner?: PolicyName
 ): SimError {
-  const out: SimError = { by, error: fault.error, message: fault.message ?? messageFor(fault, by) }
+  const out: SimError = { by, error: fault.error, message: fault.message ?? messageFor(fault, by, owner) }
   if (fault.policy !== undefined) out.policy = fault.policy
   if (fault.args) out.args = { ...fault.args }
-  if (fault.reason) out.reason = toSimError(fault.reason, 'guard', messageFor)
+  if (fault.reason) {
+    const inner = fault.error === 'PolicyReverted' && fault.policy ? fault.policy : undefined
+    out.reason = toSimError(fault.reason, 'guard', messageFor, inner)
+  }
   return out
 }
 

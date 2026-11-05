@@ -84,8 +84,8 @@
   ],
   "hints": [
     "A rule names a contract, a function and an operation. Paying in USDC is the transfer function on USDC.",
-    "AllowPolicy on that rule would pay Mallory too. Pick the policy that checks who receives the tokens.",
-    "ERC20TransferPolicy on transfer for USDC, with Dave set to ALWAYS."
+    "Always Allow on that rule would pay Mallory too. Pick the policy that checks who receives the tokens.",
+    "Recipient Allowlist (ERC20TransferPolicy) on transfer for USDC, with Dave set to ALWAYS."
   ],
   "solution": [
     {

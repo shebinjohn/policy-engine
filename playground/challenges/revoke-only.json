@@ -90,8 +90,8 @@
   ],
   "hints": [
     "An exact rule on approve for USDC wins over the catch-all.",
-    "DenyPolicy refuses revokes too: it never looks at the amount.",
-    "The spender allowlist always lets an approval of zero through. What does it allow with nobody on the list?"
+    "Always Deny refuses revokes too: it never looks at the amount.",
+    "Spender Allowlist (ERC20ApprovePolicy) always lets an approval of zero through. What does it allow with nobody on the list?"
   ],
   "solution": [
     {
@@ -107,5 +107,5 @@
       }
     }
   ],
-  "explain": "The spender allowlist always lets an approval of zero through, whoever the spender. With nobody on the list, that is all it allows: revokes pass, new approvals do not. DenyPolicy would have blocked the revokes too, leaving old approvals stuck in place."
+  "explain": "The spender allowlist always lets an approval of zero through, whoever the spender. With nobody on the list, that is all it allows: revokes pass, new approvals do not. Always Deny would have blocked the revokes too, leaving old approvals stuck in place."
 }

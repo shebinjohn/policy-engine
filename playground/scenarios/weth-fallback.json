@@ -3,8 +3,8 @@
   "chapter": "rules-and-catch-all",
   "order": 6,
   "title": "The WETH Back Door",
-  "summary": "DenyPolicy blocks deposit on WETH, yet the Safe still wraps ETH through the catch-all.",
-  "lesson": "A rule blocks a function, not an outcome. WETH wraps any ETH it receives, whatever the call says, so under a permissive catch-all a DenyPolicy on deposit does not stop wrapping.",
+  "summary": "Deposit on WETH is denied, yet the Safe still wraps ETH through the catch-all.",
+  "lesson": "A rule blocks a function, not an outcome. WETH wraps any ETH it receives, whatever the call says, so under a permissive catch-all, denying deposit does not stop wrapping.",
   "readme": "where-the-check-and-the-execution-can-diverge",
   "setup": {
     "balances": {

@@ -169,9 +169,9 @@
     }
   ],
   "hints": [
-    "A batch is a DELEGATECALL to multiSend on MultiSend. It needs a rule of its own.",
-    "AllowPolicy on the batch would wave through whatever is inside. MultiSendPolicy checks each step against your other rules.",
-    "Add MultiSendPolicy on MultiSend, function multiSend, operation DELEGATECALL."
+    "A batch is one DELEGATECALL to MultiSend. It needs a rule of its own.",
+    "Always Allow on the batch would wave through whatever is inside. The Batch Checker sends each step back through your other rules.",
+    "Batch Checker (MultiSendPolicy) on MultiSend, function multiSend, operation DELEGATECALL."
   ],
   "solution": [
     {
@@ -198,5 +198,5 @@
       }
     }
   ],
-  "explain": "MultiSendPolicy opens the batch and then runs every step through the rule table, as if each were sent alone. So a batch needs two rules: one for the batch and one for what is inside it. One step that fails its rule blocks the whole batch."
+  "explain": "The Batch Checker opens the batch and then runs every step through the rule table, as if each were sent alone. So a batch needs two rules: one for the batch and one for what is inside it. One step that fails its rule blocks the whole batch."
 }

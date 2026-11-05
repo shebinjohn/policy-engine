@@ -27,16 +27,16 @@ export const POLICY_NAMES: PolicyName[] = [
 
 /** Plain labels for policies, used in trace and effect copy. */
 export const POLICY_LABELS: Record<PolicyName, string> = {
-  AllowPolicy: 'Allow',
-  DenyPolicy: 'Deny',
-  OneTimeAllowPolicy: 'One-Time Allow',
+  AllowPolicy: 'Always Allow',
+  DenyPolicy: 'Always Deny',
+  OneTimeAllowPolicy: 'One-Time Pass',
   AllowedModulePolicy: 'Module Allowlist',
-  NativeTransferPolicy: 'ETH Transfer',
+  NativeTransferPolicy: 'Plain ETH Transfer',
   ERC20TransferPolicy: 'Recipient Allowlist',
   ERC20ApprovePolicy: 'Spender Allowlist',
-  MultiSendPolicy: 'Batch Check',
+  MultiSendPolicy: 'Batch Checker',
   CoSignerPolicy: 'Co-Signer',
-  IncreasedThresholdPolicy: 'Extra Signatures',
+  IncreasedThresholdPolicy: 'Extra Owner Signatures',
   SafenetPolicy: 'Safenet Attestation'
 }
 
@@ -235,7 +235,7 @@ export function labelOf(world: World | null, address: string): string {
 /** Short label without the parenthetical role, e.g. 'Dave' for 'Dave (vendor)'. */
 export function shortLabel(world: World | null, address: string): string {
   const entity = resolveEntity(world, address)
-  if (entity.kind === 'person') return entity.name
+  if (entity.kind === 'person' || entity.kind === 'multisend') return entity.name
   return entity.label
 }
 

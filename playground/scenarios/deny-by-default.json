@@ -68,6 +68,28 @@
         "policy": null
       },
       "note": "Changing the Safe itself is a transaction too. After hardening, adding a module needs a rule like anything else."
+    },
+    {
+      "do": "tx",
+      "label": "Ask for a new rule",
+      "tx": {
+        "to": "PolicyGuard",
+        "call": {
+          "fn": "requestConfiguration",
+          "configurations": [
+            {
+              "target": "Dave",
+              "selector": "none",
+              "policy": "NativeTransferPolicy",
+              "note": "Plain ETH to Dave"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "ok": true
+      },
+      "note": "One kind of call needs no rule: asking the Policy Guard for a rule change. Without that, a Safe with no rules could never get any."
     }
   ]
 }

@@ -345,6 +345,7 @@ export function encodeRuleData(world: World | null, policy: PolicyName, config: 
 }
 
 export function ruleToConfiguration(world: World | null, rule: RuleSpec): Configuration {
+  if (rule.policy === undefined) rule = { ...rule, policy: null }
   if (rule.policy !== null && !isPolicyName(rule.policy)) {
     throw new EngineInputError(`Unknown policy "${String(rule.policy)}"`)
   }
@@ -474,7 +475,9 @@ function rootFromCall(world: World | null, call: CallSpec): string {
   }
   const raw = call.args?.[0]
   if (typeof raw === 'string' && ethers.isHexString(raw, 32)) return raw.toLowerCase()
-  throw new EngineInputError(`${call.fn}: give "configurations" (or a 32-byte root as args[0])`)
+  if (raw !== undefined) throw new EngineInputError(`${call.fn}: args[0] must be a 32-byte root`)
+  // No rules and no root: the root of the empty configuration list (as the harness does).
+  return configurationRootOf([])
 }
 
 /** ABI-encode a CallSpec aimed at `to`. */
@@ -494,11 +497,26 @@ export function encodeCall(world: World | null, to: string, call: CallSpec): str
     case 'multiSend':
       return MULTISEND_IFACE.encodeFunctionData('multiSend', [encodeBatch(world, call.batch ?? [])])
     case 'disableModule': {
+      // args: [module] (prevModule filled from the world) or [prevModule, module].
+      if (args.length >= 2) {
+        return SAFE_IFACE.encodeFunctionData('disableModule', [
+          argValue(world, to, 'address', args[0], call.fn, 0),
+          argValue(world, to, 'address', args[1], call.fn, 1)
+        ])
+      }
       const module = argValue(world, to, 'address', args[0], call.fn, 0) as string
       const prev = prevInList(world?.safe.modules ?? [], module)
       return SAFE_IFACE.encodeFunctionData('disableModule', [prev, module])
     }
     case 'removeOwner': {
+      // args: [owner, threshold] (prevOwner filled from the world) or [prevOwner, owner, threshold].
+      if (args.length >= 3) {
+        return SAFE_IFACE.encodeFunctionData('removeOwner', [
+          argValue(world, to, 'address', args[0], call.fn, 0),
+          argValue(world, to, 'address', args[1], call.fn, 1),
+          argValue(world, to, 'uint', args[2], call.fn, 2)
+        ])
+      }
       const owner = argValue(world, to, 'address', args[0], call.fn, 0) as string
       const threshold = argValue(world, to, 'uint', args[1], call.fn, 1)
       const prev = prevInList(world?.safe.owners ?? [], owner)

@@ -4,7 +4,7 @@
   "order": 15,
   "title": "Safenet Attestations",
   "summary": "A trusted Safenet attestation lets a transfer through. A missing one, an unknown key or a second attested step does not.",
-  "lesson": "SafenetPolicy lets a transaction through when the Safenet validators have attested to it. It accepts one attestation per transaction, so a batch of Safenet-checked steps fails on its second step.",
+  "lesson": "The Safenet policy lets a transaction through when the Safenet validators have attested to it. It accepts one attestation per transaction, so a batch of Safenet-checked steps fails on its second step.",
   "readme": "policies",
   "setup": {
     "balances": {

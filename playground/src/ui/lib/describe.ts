@@ -209,15 +209,51 @@ export function actionLabel(selector: string): string {
   return f ? f.label : `Function ${selector}`
 }
 
+const eqHex = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
+
+/**
+ * The rule's settings as they stand now, read from the policy's stored state where it changes on
+ * use (spent one-time permissions and grants). Falls back to the configured bytes when the state
+ * cannot be read. The state shape is engine-internal, so every read is defensive.
+ */
+function liveDescription(world: World, entry: TableEntry): string | null {
+  try {
+    const st = (world.policyState as Record<string, Record<string, unknown>> | undefined)?.[entry.policy]
+    if (entry.policy === 'ERC20TransferPolicy' || entry.policy === 'ERC20ApprovePolicy') {
+      const table = (st?.recipients ?? st?.spenders) as Record<string, Record<string, number>> | undefined
+      const configured = decodeConfig(world, entry.policy, entry.data) as { recipients?: { account: string; permission: PermissionName }[]; spenders?: { account: string; permission: PermissionName }[] } | null
+      const rows = configured?.recipients ?? configured?.spenders ?? []
+      if (!table) return null
+      const tokenKey = Object.keys(table).find((k) => eqHex(k, entry.target))
+      const live = tokenKey ? table[tokenKey] : {}
+      const parts = Object.entries(live).map(([acct, perm]) => `${nameOf(world, acct)} ${perm === 2 ? 'always' : 'once'}`)
+      for (const r of rows) {
+        const addr = entity(world, r.account).address
+        if (r.permission === 'ONCE' && !Object.keys(live).some((k) => eqHex(k, addr))) parts.push(`${nameOf(world, r.account)} once, used`)
+      }
+      return parts.length ? parts.join(', ') : 'nobody listed'
+    }
+    if (entry.policy === 'OneTimeAllowPolicy') {
+      const grants = st?.grants as Record<string, unknown> | undefined
+      if (!grants) return 'used, no use left'
+      return Object.keys(grants).some((k) => eqHex(k, entry.access)) ? 'one use left' : 'used, no use left'
+    }
+  } catch {
+    return null
+  }
+  return null
+}
+
 export function describeTableEntry(world: World, entry: TableEntry): RuleWords {
   const config = decodeConfig(world, entry.policy, entry.data)
+  const live = liveDescription(world, entry)
   return {
     isFallback: entry.isFallback,
     target: entry.isFallback ? 'Any target' : nameOf(world, entry.target),
     action: entry.isFallback ? 'Any action' : actionLabel(entry.selector),
     op: opWord(entry.operation),
     policy: policyLabel(entry.policy),
-    config: describeConfig(world, entry.policy, config),
+    config: live ?? describeConfig(world, entry.policy, config),
     removes: false
   }
 }

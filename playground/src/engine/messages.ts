@@ -11,15 +11,14 @@ import {
   ZERO,
   eqAddr,
   formatAsset,
-  formatUnitsPlain,
   kindOf,
-  policyAt,
   shortLabel
 } from './book.ts'
 import { SELECTORS, catalogBySelector, decodeConfigurations, GUARD_IFACE, MULTISEND_IFACE } from './catalog.ts'
 import type { Fault } from './errors.ts'
 import type { ErrorSource, PolicyName, World } from './types.ts'
 
+const L = POLICY_LABELS
 export const policyLabel = (p: PolicyName): string => POLICY_LABELS[p]
 
 export function plural(n: number, one: string, many = one + 's'): string {
@@ -82,6 +81,7 @@ export function describeAccess(w: World | null, access: string): string {
   const entry = catalogBySelector(selector)
   if (entry) {
     const kind = kindOf(w, target)
+    if (entry.name === 'multiSend') return op === 1 ? `${t} batches` : `${t} batches as a plain call`
     if (SAFE_FNS.has(entry.name) && kind !== 'safe') return `${entry.name} calls to ${t}${suffix}`
     return FN_PHRASE[entry.name](t) + suffix
   }
@@ -375,68 +375,69 @@ export const T = {
   noRule: 'No rule and no catch-all rule, so the Safe refuses by default',
   noRuleDetail: 'Every call needs a rule. Anything without one is denied.',
   // Policies
-  allowPass: 'Allow: this rule lets the call through',
-  denyFail: 'Deny: this rule refuses the call',
+  allowPass: `${L.AllowPolicy}: this rule lets the call through`,
+  denyFail: `${L.DenyPolicy}: this rule refuses the call`,
   denyDetail: 'A Deny rule always refuses, whatever the catch-all rule allows.',
-  oneTimePass: 'One-Time Allow: the single permission is used now',
-  oneTimeFail: (what: string) => `One-Time Allow: no permission left for ${what}`,
+  oneTimePass: `${L.OneTimeAllowPolicy}: the single permission is used now`,
+  oneTimeFail: (what: string) => `${L.OneTimeAllowPolicy}: no permission left for ${what}`,
   oneTimeState: (what: string) => `One-time permission for ${what} used up`,
-  moduleOwnerPath: 'Module Allowlist: owner transactions never pass this rule',
-  moduleNotAllowed: (m: string) => `Module Allowlist: ${m} is not on the allowlist`,
-  moduleAllowed: (m: string) => `Module Allowlist: ${m} is on the allowlist`,
-  nativeDelegate: 'ETH Transfer: a delegatecall is not a plain transfer',
-  nativeData: 'ETH Transfer: the call carries data, so it is not a plain transfer',
+  moduleOwnerPath: `${L.AllowedModulePolicy}: owner transactions never pass this rule`,
+  moduleNotAllowed: (m: string) => `${L.AllowedModulePolicy}: ${m} is not on the allowlist`,
+  moduleAllowed: (m: string) => `${L.AllowedModulePolicy}: ${m} is on the allowlist`,
+  nativeDelegate: `${L.NativeTransferPolicy}: a delegatecall is not a plain transfer`,
+  nativeData: `${L.NativeTransferPolicy}: the call carries data, so it is not a plain transfer`,
   nativeDataDetail: 'Data starting with four zero bytes has the same key as an empty call, but this rule checks the data is empty.',
-  nativeNoValue: 'ETH Transfer: the call sends no ETH',
-  nativePass: (amount: string, to: string) => `ETH Transfer: plain transfer of ${amount} to ${to}`,
-  transferNotTransfer: 'Recipient Allowlist: this is not a token transfer',
-  transferBadData: 'Recipient Allowlist: the transfer data cannot be read',
-  transferDenied: (who: string, token: string) => `Recipient Allowlist: ${who} may not receive ${token}`,
-  transferAllowed: (who: string, token: string) => `Recipient Allowlist: ${who} may receive ${token}`,
-  transferOnce: (who: string, token: string) => `Recipient Allowlist: ${who} may receive ${token} once`,
+  nativeNoValue: `${L.NativeTransferPolicy}: the call sends no ETH`,
+  nativePass: (amount: string, to: string) => `${L.NativeTransferPolicy}: plain transfer of ${amount} to ${to}`,
+  transferNotTransfer: `${L.ERC20TransferPolicy}: this is not a token transfer`,
+  transferBadData: `${L.ERC20TransferPolicy}: the transfer data cannot be read`,
+  transferDenied: (who: string, token: string) => `${L.ERC20TransferPolicy}: ${who} may not receive ${token}`,
+  transferAllowed: (who: string, token: string) => `${L.ERC20TransferPolicy}: ${who} may receive ${token}`,
+  transferOnce: (who: string, token: string) => `${L.ERC20TransferPolicy}: ${who} may receive ${token} once`,
   transferState: (who: string, token: string) => `One-time permission for ${who} to receive ${token} used up`,
-  approveNotApprove: 'Spender Allowlist: this is not a token approval',
-  approveBadData: 'Spender Allowlist: the approval data cannot be read',
-  approveRevoke: 'Spender Allowlist: setting an allowance to 0 is always allowed',
-  approveDenied: (who: string, token: string) => `Spender Allowlist: ${who} may not be approved for ${token}`,
-  approveAllowed: (who: string, token: string) => `Spender Allowlist: ${who} may be approved for ${token}`,
-  approveOnce: (who: string, token: string) => `Spender Allowlist: ${who} may be approved for ${token} once`,
+  approveNotApprove: `${L.ERC20ApprovePolicy}: this is not a token approval`,
+  approveBadData: `${L.ERC20ApprovePolicy}: the approval data cannot be read`,
+  approveRevoke: `${L.ERC20ApprovePolicy}: setting an allowance to 0 is always allowed`,
+  approveDenied: (who: string, token: string) => `${L.ERC20ApprovePolicy}: ${who} may not be approved for ${token}`,
+  approveAllowed: (who: string, token: string) => `${L.ERC20ApprovePolicy}: ${who} may be approved for ${token}`,
+  approveOnce: (who: string, token: string) => `${L.ERC20ApprovePolicy}: ${who} may be approved for ${token} once`,
   approveState: (who: string, token: string) => `One-time permission to approve ${who} for ${token} used up`,
-  batchStart: (n: number) => `Batch Check: each of the ${plural(n, 'step')} is checked on its own`,
+  batchStart: (n: number) => `${L.MultiSendPolicy}: each of the ${plural(n, 'step')} is checked on its own`,
+  batchStartUnknown: `${L.MultiSendPolicy}: each step is checked on its own`,
   batchStartDetail:
     'Every step is checked against the rules before any of them runs, so all steps see the Safe as it is now.',
-  batchPass: (n: number) => `Batch Check: all ${plural(n, 'step')} passed`,
-  batchFail: (i: number) => `Batch Check: step ${i + 1} was refused, so the whole batch is refused`,
-  batchNotMultiSend: 'Batch Check: this is not a MultiSend batch',
-  batchMalformed: 'Batch Check: the batch data cannot be read',
-  batchContextMalformed: 'Batch Check: the attached context is not a list of step contexts',
+  batchPass: (n: number) => `${L.MultiSendPolicy}: all ${plural(n, 'step')} passed`,
+  batchFail: (i: number) => `${L.MultiSendPolicy}: step ${i + 1} was refused, so the whole batch is refused`,
+  batchNotMultiSend: `${L.MultiSendPolicy}: this is not a MultiSend batch`,
+  batchMalformed: `${L.MultiSendPolicy}: the batch data cannot be read`,
+  batchContextMalformed: `${L.MultiSendPolicy}: the attached context is not a list of step contexts`,
   batchStep: (i: number, what: string) => `Step ${i + 1}: ${what}`,
-  cosignModule: 'Co-Signer: module transactions cannot carry a co-signature',
-  cosignNone: 'Co-Signer: no co-signer is set for this rule',
-  cosignMissing: (who: string) => `Co-Signer: no co-signature from ${who}`,
-  cosignWrongSigner: (who: string, signer: string) => `Co-Signer: signed by ${signer}, not ${who}`,
-  cosignOverBatch: (who: string) => `Co-Signer: ${who} signed the whole batch, not this step`,
+  cosignModule: `${L.CoSignerPolicy}: module transactions cannot carry a co-signature`,
+  cosignNone: `${L.CoSignerPolicy}: no co-signer is set for this rule`,
+  cosignMissing: (who: string) => `${L.CoSignerPolicy}: no co-signature from ${who}`,
+  cosignWrongSigner: (who: string, signer: string) => `${L.CoSignerPolicy}: signed by ${signer}, not ${who}`,
+  cosignOverBatch: (who: string) => `${L.CoSignerPolicy}: ${who} signed the whole batch, not this step`,
   cosignOverBatchDetail: 'In a batch each step needs a co-signature over its own transaction, not over the batch.',
-  cosignSpent: 'Co-Signer: this co-signature was already used',
+  cosignSpent: `${L.CoSignerPolicy}: this co-signature was already used`,
   cosignSpentDetail: 'A batch cannot repeat an identical co-signed step. Vary it, or split it across transactions.',
-  cosignPass: (who: string) => `Co-Signer: ${who} signed this transaction`,
+  cosignPass: (who: string) => `${L.CoSignerPolicy}: ${who} signed this transaction`,
   cosignState: 'Co-signature for this transaction spent',
-  thresholdModule: 'Extra Signatures: module transactions carry no signatures',
-  thresholdTooFew: (need: number, got: number) => `Extra Signatures: needs ${need} owner signatures, got ${got}`,
-  thresholdBad: (who: string) => `Extra Signatures: ${who} is not an owner or signed twice`,
+  thresholdModule: `${L.IncreasedThresholdPolicy}: module transactions carry no signatures`,
+  thresholdTooFew: (need: number, got: number) => `${L.IncreasedThresholdPolicy}: needs ${need} owner signatures, got ${got}`,
+  thresholdBad: (who: string) => `${L.IncreasedThresholdPolicy}: ${who} is not an owner or signed twice`,
   thresholdNeedDetail: (need: number, owners: number, threshold: number) =>
     `This rule needs ${need} of ${owners} owners, more than the Safe threshold of ${threshold}.`,
-  thresholdSpent: 'Extra Signatures: these signatures were already used',
+  thresholdSpent: `${L.IncreasedThresholdPolicy}: these signatures were already used`,
   thresholdSpentDetail: 'A batch cannot repeat an identical step checked by signatures. Vary it, or split it.',
-  thresholdPass: (got: number, owners: number) => `Extra Signatures: ${got} of ${owners} owners signed`,
+  thresholdPass: (got: number, owners: number) => `${L.IncreasedThresholdPolicy}: ${got} of ${owners} owners signed`,
   thresholdState: 'Owner signatures for this transaction spent',
-  safenetModule: 'Safenet Attestation: module transactions carry no attestation',
-  safenetMalformed: 'Safenet Attestation: no attestation came with this transaction',
-  safenetUntrusted: 'Safenet Attestation: signed by a key Safenet does not trust',
-  safenetSpent: (n: number) => `Safenet Attestation: nonce ${n} already has an approved step`,
+  safenetModule: `${L.SafenetPolicy}: module transactions carry no attestation`,
+  safenetMalformed: `${L.SafenetPolicy}: no attestation came with this transaction`,
+  safenetUntrusted: `${L.SafenetPolicy}: signed by a key Safenet does not trust`,
+  safenetSpent: (n: number) => `${L.SafenetPolicy}: nonce ${n} already has an approved step`,
   safenetSpentDetail: 'Safenet approves one check per nonce, so a batch can hold only one Safenet-checked step.',
-  safenetInvalid: 'Safenet Attestation: the attestation does not match this transaction',
-  safenetPass: 'Safenet Attestation: the validators approved this transaction',
+  safenetInvalid: `${L.SafenetPolicy}: the attestation does not match this transaction`,
+  safenetPass: `${L.SafenetPolicy}: the validators approved this transaction`,
   safenetState: (n: number) => `Safenet attestation for nonce ${n} spent`,
   stagedDetail: 'This change is kept only if the whole transaction succeeds.',
   // Execution
@@ -543,8 +544,4 @@ export function multiSendInner(data: string): string | null {
   } catch {
     return null
   }
-}
-
-export function amountPlain(w: World | null, asset: string, amount: bigint): string {
-  return formatUnitsPlain(amount, asset === 'ETH' ? 18 : (policyAt(w, asset) ? 18 : 18))
 }

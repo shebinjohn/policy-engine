@@ -3,7 +3,7 @@
   "chapter": "changing-the-rules",
   "order": 22,
   "title": "Removing the Guard",
-  "summary": "Removing the Policy Guard takes a requested rule, a wait, an apply, and then the removal itself.",
+  "summary": "Removing the Policy Guard takes a rule change, a wait, and then the removal itself, each in its own transaction.",
   "lesson": "Removing the Policy Guard is a rule change like any other: ask for rules that allow removing both guards, wait, apply them, then remove both guards in a later transaction.",
   "readme": "guard-removal",
   "setup": {

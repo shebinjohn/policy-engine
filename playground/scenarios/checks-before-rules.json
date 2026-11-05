@@ -63,7 +63,7 @@
         "by": "guard",
         "error": "NonZeroSafeTxGas"
       },
-      "note": "With safeTxGas set, a call that fails could still count as done. The guard requires zero, so a failure always undoes everything."
+      "note": "With its own gas limit set, a call that fails could still count as done. The guard requires zero, so a failure always undoes everything."
     },
     {
       "do": "tx",

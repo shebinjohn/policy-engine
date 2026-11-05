@@ -16,8 +16,7 @@
     "AllowPolicy",
     "IncreasedThresholdPolicy",
     "MultiSendPolicy",
-    "AllowedModulePolicy",
-    "DenyPolicy"
+    "AllowedModulePolicy"
   ],
   "parRules": 3,
   "tests": [
@@ -157,9 +156,9 @@
     }
   ],
   "hints": [
-    "AllowPolicy on removing a guard lets enabled modules do it too. You need a policy that only owners can satisfy.",
-    "The extra-signatures policy asks for more owners than the threshold, and it refuses every module transaction.",
-    "Use it on setGuard and on setModuleGuard for the Safe, and add MultiSendPolicy so both can go in one batch."
+    "Always Allow on removing a guard lets enabled modules do it too. You need a policy that only owners can satisfy.",
+    "Extra Owner Signatures asks for more owners than the threshold, and it refuses every module transaction.",
+    "IncreasedThresholdPolicy on setGuard and on setModuleGuard for the Safe, plus MultiSendPolicy so both can go in one batch."
   ],
   "solution": [
     {
@@ -185,5 +184,5 @@
       }
     }
   ],
-  "explain": "A module carries no signatures, so a policy built on signatures refuses it outright. That makes the extra-signatures policy an owner-only lock: every owner must sign to remove a guard, and no module ever can. In a live Safe these rules arrive through the waiting period, and the removal follows in a later transaction."
+  "explain": "A module carries no signatures, so a policy built on signatures refuses it outright. That makes Extra Owner Signatures an owner-only lock: every owner must sign to remove a guard, and no module ever can. In a live Safe these rules arrive through the waiting period, and the removal follows in a later transaction."
 }

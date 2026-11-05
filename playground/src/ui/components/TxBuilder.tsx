@@ -266,8 +266,8 @@ function ContextFields({ id, world, ctx, onChange, inBatch = false }: { id: stri
         onChange={(kind) => onChange({ ...ctx, kind, signers: kind === 'ownerSignatures' && ctx.signers.length === 0 ? [...owners] : ctx.signers })}
         options={[
           { value: 'none', label: 'None' },
-          { value: 'cosignature', label: 'Co-signature' },
-          { value: 'ownerSignatures', label: 'Owner signatures' },
+          { value: 'cosignature', label: 'Co-signer' },
+          { value: 'ownerSignatures', label: 'Extra owners' },
           { value: 'attestation', label: 'Safenet' }
         ]}
       />

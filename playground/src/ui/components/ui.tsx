@@ -371,7 +371,7 @@ export function Checkbox({ id, checked, onChange, label, hint }: { id: string; c
   )
 }
 
-export function Switch({ id, checked, onChange, label }: { id: string; checked: boolean; onChange: (v: boolean) => void; label: string }) {
+export function Switch({ id, checked, onChange, label }: { id: string; checked: boolean; onChange: (v: boolean) => void; label: ReactNode }) {
   return (
     <button id={id} type="button" role="switch" aria-checked={checked} className={`switch${checked ? ' is-on' : ''}`} onClick={() => onChange(!checked)}>
       <span className="switch-track" aria-hidden="true">

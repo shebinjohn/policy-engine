@@ -61,8 +61,8 @@
   ],
   "hints": [
     "Plain ETH has no calldata. Its rule uses Erin as the target and the empty selector, none.",
-    "Four zero bytes of calldata land on the same rule as no calldata at all. AllowPolicy cannot tell them apart.",
-    "NativeTransferPolicy on Erin, selector none."
+    "Four zero bytes of calldata land on the same rule as no calldata at all. Always Allow cannot tell them apart.",
+    "Plain ETH Transfer (NativeTransferPolicy) on Erin, selector none."
   ],
   "solution": [
     {
@@ -71,5 +71,5 @@
       "policy": "NativeTransferPolicy"
     }
   ],
-  "explain": "Empty calldata and four zero bytes both read as selector zero, so they share Erin's rule. AllowPolicy lets both through, and sent to a contract with a fallback, the zero bytes would run code. NativeTransferPolicy checks that the calldata is truly empty, that it is a plain CALL and that some ETH moves."
+  "explain": "Empty calldata and four zero bytes both read as selector zero, so they share Erin's rule. Always Allow lets both through, and sent to a contract with a fallback, the zero bytes would run code. The plain ETH policy checks that the calldata is truly empty, that it is a plain CALL and that some ETH moves."
 }

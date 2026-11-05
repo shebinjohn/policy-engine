@@ -93,3 +93,10 @@ export function solidityError(err: SimError): string {
   const args = err.args ? Object.values(err.args).join(', ') : ''
   return `${err.error}(${args})`
 }
+
+/** A few words for why a transaction was stopped: the error title of its deepest reason. */
+export function shortReason(err: SimError | undefined): string {
+  if (!err) return ''
+  const d = innermost(err)
+  return errorInfo(d.error.error, d.policy)?.title ?? d.error.error
+}

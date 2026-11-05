@@ -4,7 +4,7 @@
   "order": 7,
   "title": "Always or Once",
   "summary": "A recipient allowlist pays Dave as often as needed and Erin exactly once.",
-  "lesson": "ERC20TransferPolicy keeps a list of who may receive a token. ALWAYS stays on the list. ONCE is used up by the first payment.",
+  "lesson": "A recipient allowlist keeps a list of who may receive a token. ALWAYS stays on the list. ONCE is used up by the first payment.",
   "readme": "policies",
   "setup": {
     "balances": {

@@ -107,7 +107,7 @@
   "hints": [
     "A module transaction cannot carry a co-signature, so the co-signer catch-all refuses every module transaction.",
     "Give USDC transfers a rule of their own. Which policy looks at who sent the transaction rather than where the tokens go?",
-    "AllowedModulePolicy on transfer for USDC, with the Allowance Module allowed. It refuses owners on that rule, and here that is the point."
+    "Module Allowlist (AllowedModulePolicy) on transfer for USDC, with the Allowance Module allowed. It refuses owners on that rule, and here that is the point."
   ],
   "solution": [
     {

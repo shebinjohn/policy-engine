@@ -4,7 +4,7 @@ import type { Effect, EncodedTx, SimResult, TraceEvent, TxSpec, World } from '..
 import { errorInfo, innermost, policyLabel, solidityError } from '../lib/content.ts'
 import { describeCall, describeContext, describeWho, nameOf } from '../lib/describe.ts'
 import { formatUnits } from '../lib/format.ts'
-import { buildStages, stageLabel, statusWord } from '../lib/pipeline.ts'
+import { buildStages, splitEnd, stageLabel, statusWord } from '../lib/pipeline.ts'
 import type { PipeItem, Stage, SubItem } from '../lib/pipeline.ts'
 import { CopyText, Glyph, Pill, Status, Tech, useEngineer } from './ui.tsx'
 
@@ -170,13 +170,16 @@ function StageView({ st, path, index }: { st: Stage; path: 'owner' | 'module'; i
 }
 
 export function Pipeline({ result, path, animate = false }: { result: SimResult; path: 'owner' | 'module'; animate?: boolean }) {
-  const stages = useMemo(() => buildStages(result.trace), [result.trace])
+  const { stages, end } = useMemo(() => {
+    const parts = splitEnd(result.trace)
+    return { stages: buildStages(parts.main), end: parts.end }
+  }, [result.trace])
   const err = result.error
   const outcome = result.ok
     ? { cls: 'is-outcome', word: 'Executed', note: 'All changes were kept.' }
     : err?.by === 'execution'
-      ? { cls: 'is-blocked', word: 'Reverted', note: 'Nothing changed. Everything staged was undone.' }
-      : { cls: 'is-blocked', word: 'Blocked', note: 'Nothing ran. Nothing changed.' }
+      ? { cls: 'is-blocked', word: 'Reverted', note: 'The call failed, so the whole transaction was undone.' }
+      : { cls: 'is-blocked', word: 'Blocked', note: 'The call never ran.' }
   return (
     <div className="scroll-x">
       <ol className={`pipe${animate ? ' is-build' : ''}`} aria-label="Decision path">
@@ -188,6 +191,13 @@ export function Pipeline({ result, path, animate = false }: { result: SimResult;
             <span className={`node ${outcome.cls}`}>{outcome.word}</span>
             <span className="muted pipe-end-note">{outcome.note}</span>
           </div>
+          {end.length > 0 ? (
+            <ul className="pipe-events">
+              {end.map((ev, i) => (
+                <EventRow key={i} ev={ev} />
+              ))}
+            </ul>
+          ) : null}
         </li>
       </ol>
     </div>
