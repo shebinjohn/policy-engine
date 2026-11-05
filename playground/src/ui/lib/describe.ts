@@ -21,7 +21,7 @@ import type {
 } from '../../engine/types.ts'
 import { engine } from '../sources.ts'
 import { errorInfo, policyLabel } from './content.ts'
-import { formatHuman, isAddress, joinNames, plural, shortAddress } from './format.ts'
+import { formatHuman, formatUnits, isAddress, joinNames, plural, shortAddress } from './format.ts'
 
 export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 export const ZERO_SELECTOR = '0x00000000'
@@ -457,4 +457,20 @@ export function describeExpectation(e: Expectation): string {
         ? ' by the Policy Guard'
         : ''
   return `${verb}${by === 'execution' ? '' : who}${title ? `: ${title}` : ''}`
+}
+
+/** A holder's balances, formatted, in book order of assets. */
+export function balanceRows(world: World, holder: string): { asset: string; amount: string; symbol: string }[] {
+  const rows: { asset: string; amount: string; symbol: string }[] = []
+  const addr = holder.toLowerCase()
+  for (const [asset, holders] of Object.entries(world.balances)) {
+    const hit = Object.entries(holders).find(([h]) => h.toLowerCase() === addr)
+    if (!hit) continue
+    if (asset === 'ETH') rows.push({ asset, amount: formatUnits(hit[1], 18), symbol: 'ETH' })
+    else {
+      const e = world.book.find((b) => b.address.toLowerCase() === asset.toLowerCase())
+      rows.push({ asset, amount: formatUnits(hit[1], e?.decimals ?? 18), symbol: e?.symbol ?? nameOf(world, asset) })
+    }
+  }
+  return rows
 }

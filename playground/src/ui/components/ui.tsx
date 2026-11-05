@@ -1,6 +1,6 @@
 /** Small shared building blocks: glyphs, status chips, fields, selects, callouts, copy button. */
-import { createContext, useContext, useId, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import { createContext, useContext, useEffect, useId, useRef, useState } from 'react'
+import type { KeyboardEvent, ReactNode } from 'react'
 import type { EntityKind, World } from '../../engine/types.ts'
 import { isAddress } from '../lib/format.ts'
 import { keyOf, nameOf } from '../lib/describe.ts'
@@ -323,7 +323,16 @@ export function TextInput({
   )
 }
 
-/** A row of mutually exclusive choices. */
+/** Arrow keys, Home and End move between items of a group, wrapping around. */
+function arrowIndex(key: string, i: number, n: number): number | null {
+  if (key === 'ArrowRight' || key === 'ArrowDown') return (i + 1) % n
+  if (key === 'ArrowLeft' || key === 'ArrowUp') return (i - 1 + n) % n
+  if (key === 'Home') return 0
+  if (key === 'End') return n - 1
+  return null
+}
+
+/** A row of mutually exclusive choices: a radio group with one tab stop and arrow keys. */
 export function Segmented<T extends string>({
   id,
   value,
@@ -339,15 +348,27 @@ export function Segmented<T extends string>({
   label: string
   size?: 'sm' | 'md'
 }) {
+  const selected = Math.max(
+    0,
+    options.findIndex((o) => o.value === value)
+  )
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    const next = arrowIndex(e.key, selected, options.length)
+    if (next === null) return
+    e.preventDefault()
+    onChange(options[next].value)
+    document.getElementById(`${id}-${options[next].value}`)?.focus()
+  }
   return (
-    <div className={`segmented is-${size}`} role="radiogroup" aria-label={label} id={id}>
-      {options.map((o) => (
+    <div className={`segmented is-${size}`} role="radiogroup" aria-label={label} id={id} onKeyDown={onKeyDown}>
+      {options.map((o, i) => (
         <button
           key={o.value}
           id={`${id}-${o.value}`}
           type="button"
           role="radio"
           aria-checked={value === o.value}
+          tabIndex={i === selected ? 0 : -1}
           className={value === o.value ? 'is-on' : ''}
           onClick={() => onChange(o.value)}
         >
@@ -356,6 +377,82 @@ export function Segmented<T extends string>({
       ))}
     </div>
   )
+}
+
+/** WAI-ARIA tabs: one tab stop, arrow keys select (automatic activation). Panels use tabPanelProps. */
+export function Tabs<T extends string>({
+  id,
+  value,
+  onChange,
+  options,
+  label
+}: {
+  id: string
+  value: T
+  onChange: (v: T) => void
+  options: { value: T; label: string }[]
+  label: string
+}) {
+  const selected = Math.max(
+    0,
+    options.findIndex((o) => o.value === value)
+  )
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    const next = arrowIndex(e.key, selected, options.length)
+    if (next === null) return
+    e.preventDefault()
+    onChange(options[next].value)
+    document.getElementById(`${id}-tab-${options[next].value}`)?.focus()
+  }
+  return (
+    <div className="tabs" role="tablist" aria-label={label} onKeyDown={onKeyDown}>
+      {options.map((o, i) => (
+        <button
+          key={o.value}
+          id={`${id}-tab-${o.value}`}
+          type="button"
+          role="tab"
+          aria-selected={i === selected}
+          aria-controls={`${id}-panel-${o.value}`}
+          tabIndex={i === selected ? 0 : -1}
+          className={i === selected ? 'is-on' : ''}
+          onClick={() => onChange(o.value)}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/** Props for the panel of a Tabs option. Pass active=false when the tabs are not in use (wide layouts). */
+export function tabPanelProps(id: string, value: string, active: boolean) {
+  return active ? { id: `${id}-panel-${value}`, role: 'tabpanel', 'aria-labelledby': `${id}-tab-${value}`, tabIndex: -1 } : { id: `${id}-panel-${value}` }
+}
+
+/** True while a media query matches. */
+export function useMedia(query: string): boolean {
+  const get = () => {
+    try {
+      return window.matchMedia(query).matches
+    } catch {
+      return false
+    }
+  }
+  const [match, setMatch] = useState(get)
+  useEffect(() => {
+    let mq: MediaQueryList
+    try {
+      mq = window.matchMedia(query)
+    } catch {
+      return
+    }
+    const on = () => setMatch(mq.matches)
+    on()
+    mq.addEventListener?.('change', on)
+    return () => mq.removeEventListener?.('change', on)
+  }, [query])
+  return match
 }
 
 export function Checkbox({ id, checked, onChange, label, hint }: { id: string; checked: boolean; onChange: (v: boolean) => void; label: ReactNode; hint?: ReactNode }) {

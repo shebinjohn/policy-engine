@@ -1,10 +1,9 @@
 /** "Your Safe": owners, guards, modules, balances, rules, change sets, clock, activity. */
 import type { ReactNode } from 'react'
 import type { RuleSpec, TableEntry, World } from '../../engine/types.ts'
-import { describeRuleSpec, describeTableEntry, nameOf, ownerNames, moduleNames } from '../lib/describe.ts'
+import { balanceRows, describeRuleSpec, describeTableEntry, nameOf, ownerNames, moduleNames } from '../lib/describe.ts'
 import type { RuleWords } from '../lib/describe.ts'
 import { formatDuration, formatShortTime, formatTime, plural, shortAddress } from '../lib/format.ts'
-import { balanceRows } from './Result.tsx'
 import { Button, Callout, Glyph, Status, Tech, useEngineer } from './ui.tsx'
 
 export function Section({ title, aside, children, id }: { title: ReactNode; aside?: ReactNode; children: ReactNode; id?: string }) {
@@ -31,10 +30,18 @@ export function guardState(world: World) {
 // Facts
 // ---------------------------------------------------------------------------------------------
 
-export function OwnersSection({ world, idPrefix = '' }: { world: World; idPrefix?: string }) {
+export function OwnersSection({ world, idPrefix = '', nonceChanged = false, flashKey = 0 }: { world: World; idPrefix?: string; nonceChanged?: boolean; flashKey?: number }) {
   const owners = ownerNames(world)
   return (
-    <Section title="Owners" id={`${idPrefix}sec-owners`} aside={<span className="muted small tnum">Nonce {world.safe.nonce}</span>}>
+    <Section
+      title="Owners"
+      id={`${idPrefix}sec-owners`}
+      aside={
+        <span key={nonceChanged ? `n-${flashKey}` : 'n'} className={`muted small tnum${nonceChanged ? ' flash' : ''}`}>
+          Nonce {world.safe.nonce}
+        </span>
+      }
+    >
       <ul className="chips" aria-label="Owners">
         {owners.map((o) => (
           <li key={o} className="chip">
@@ -114,7 +121,7 @@ export function ModulesSection({ world, idPrefix = '' }: { world: World; idPrefi
   )
 }
 
-export function BalancesSection({ world, idPrefix = '' }: { world: World; idPrefix?: string }) {
+export function BalancesSection({ world, idPrefix = '', changed, flashKey = 0 }: { world: World; idPrefix?: string; changed?: Set<string>; flashKey?: number }) {
   const rows = balanceRows(world, world.safe.address)
   const others = world.book
     .filter((e) => e.kind === 'person' || e.kind === 'module' || e.kind === 'contract' || e.kind === 'service')
@@ -128,7 +135,7 @@ export function BalancesSection({ world, idPrefix = '' }: { world: World; idPref
         <table className="balances">
           <tbody>
             {rows.map((r) => (
-              <tr key={r.asset}>
+              <tr key={changed?.has(r.asset) ? `${r.asset}-${flashKey}` : r.asset} className={changed?.has(r.asset) ? 'flash' : undefined}>
                 <th scope="row">{r.symbol}</th>
                 <td className="tnum">{r.amount}</td>
               </tr>
@@ -157,9 +164,35 @@ export function BalancesSection({ world, idPrefix = '' }: { world: World; idPref
 // Rules
 // ---------------------------------------------------------------------------------------------
 
-export function RuleRow({ w, access, actions, note, marker }: { w: RuleWords; access?: string; actions?: ReactNode; note?: string; marker?: ReactNode }) {
+export function ruleDomId(access: string): string {
+  return `rule-${access.toLowerCase().replace(/^0x/, '')}`
+}
+
+export function RuleRow({
+  w,
+  access,
+  actions,
+  note,
+  marker,
+  decided = false,
+  domId
+}: {
+  w: RuleWords
+  access?: string
+  actions?: ReactNode
+  note?: string
+  marker?: ReactNode
+  decided?: boolean
+  domId?: string
+}) {
   return (
-    <li className={`rule${w.isFallback ? ' is-fallback' : ''}${w.removes ? ' is-removal' : ''}`}>
+    <li id={domId} tabIndex={domId ? -1 : undefined} className={`rule${w.isFallback ? ' is-fallback' : ''}${w.removes ? ' is-removal' : ''}${decided ? ' is-decided flash' : ''}`}>
+      {decided ? (
+        <span className="decided-badge">
+          <Glyph kind="arrow-right" size={12} />
+          Decided the last run
+        </span>
+      ) : null}
       <div className="rule-top">
         <p className="rule-when">
           {w.isFallback ? (
@@ -209,13 +242,20 @@ export function RuleTable({
   world,
   onEdit,
   onRemove,
-  staged
+  staged,
+  decided,
+  flashKey = 0
 }: {
   world: World
   onEdit?: (e: TableEntry) => void
   onRemove?: (e: TableEntry) => void
   staged?: (e: TableEntry) => boolean
+  /** Access key of the rule that decided the last run. */
+  decided?: string | null
+  /** Changes on every run, to restart the highlight. */
+  flashKey?: number
 }) {
+  const isDecided = (e: TableEntry) => !!decided && e.access.toLowerCase() === decided.toLowerCase()
   const entries = sortEntries(world, Object.values(world.table))
   const exact = entries.filter((e) => !e.isFallback)
   const fallback = entries.filter((e) => e.isFallback)
@@ -249,7 +289,14 @@ export function RuleTable({
       {exact.length > 0 ? (
         <ul className="rule-list" aria-label="Rules">
           {exact.map((e) => (
-            <RuleRow key={e.access} w={describeTableEntry(world, e)} access={e.access} actions={actions(e)} />
+            <RuleRow
+              key={isDecided(e) ? `${e.access}-${flashKey}` : e.access}
+              w={describeTableEntry(world, e)}
+              access={e.access}
+              actions={actions(e)}
+              decided={isDecided(e)}
+              domId={ruleDomId(e.access)}
+            />
           ))}
         </ul>
       ) : (
@@ -261,7 +308,14 @@ export function RuleTable({
       {fallback.length > 0 ? (
         <ul className="rule-list" aria-label="Catch-all rules">
           {fallback.map((e) => (
-            <RuleRow key={e.access} w={describeTableEntry(world, e)} access={e.access} actions={actions(e)} />
+            <RuleRow
+              key={isDecided(e) ? `${e.access}-${flashKey}` : e.access}
+              w={describeTableEntry(world, e)}
+              access={e.access}
+              actions={actions(e)}
+              decided={isDecided(e)}
+              domId={ruleDomId(e.access)}
+            />
           ))}
         </ul>
       ) : (

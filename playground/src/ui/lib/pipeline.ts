@@ -143,3 +143,19 @@ export function statusWord(key: StageKey, status: StageStatus): string {
       return ok ? 'Executed' : 'Reverted'
   }
 }
+
+/**
+ * Where a failed run stopped, in the words of the decision path: the first stage that failed, and
+ * what stopped it there (the policy, or the error title).
+ */
+export function stopPoint(
+  result: { ok: boolean; trace: TraceEvent[]; error?: { error: string; policy?: PolicyName | null } },
+  path: 'owner' | 'module',
+  reasonOf: (policy: PolicyName | undefined) => string
+): { key: StageKey; stage: string; why: string } | null {
+  if (result.ok) return null
+  const stages = buildStages(splitEnd(result.trace).main)
+  const st = stages.find((s) => s.status === 'fail') ?? stages.filter((s) => s.items.length > 0).pop()
+  if (!st) return null
+  return { key: st.key, stage: stageLabel(st.key, path, false), why: reasonOf(st.policy) }
+}
